@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VoiceFill</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+  <!-- Screen 1: Upload (default visible) -->
+  <main id="screen-upload">
+    <h1>VoiceFill</h1>
+    <p class="tagline">Reconstruct your WhatsApp voice messages</p>
+
+    <div id="drop-zone" role="region" aria-label="File upload area">
+      <p>Drop your WhatsApp export ZIP here</p>
+      <p class="muted">or</p>
+      <button type="button" id="btn-browse">Browse for file</button>
+    </div>
+
+    <p class="fine-print">Accepts .zip from WhatsApp &#8216;Export Chat&#8217; &#8594; &#8216;Attach Media&#8217;</p>
+    <input type="file" id="file-input" accept=".zip" style="display:none">
+  </main>
+
+  <!-- Screen 2: Processing -->
+  <main id="screen-processing" style="display:none">
+    <p aria-live="polite" class="processing-text">Reading export<span class="dot dot-1">·</span><span class="dot dot-2">·</span><span class="dot dot-3">·</span></p>
+  </main>
+
+  <!-- Screen 3: Results -->
+  <main id="screen-results" style="display:none">
+    <header id="results-header">
+      <span class="header-title">VoiceFill</span>
+      <div class="header-actions">
+        <button type="button" id="btn-copy">Copy to clipboard</button>
+        <button type="button" id="btn-download">Download .txt</button>
+      </div>
+    </header>
+    <p id="summary-line"></p>
+    <div id="chat-log"></div>
+    <div class="results-footer">
+      <button type="button" id="btn-try-another">Try another file</button>
+    </div>
+  </main>
+
+  <!-- Screen 4: Without-media error -->
+  <main id="screen-without-media" style="display:none">
+    <h2>This export doesn&#8217;t include audio files</h2>
+    <p>WhatsApp only includes voice messages when you export with media. To get the audio files, re-export the chat:</p>
+    <ol>
+      <li>Open the chat in WhatsApp</li>
+      <li>Tap the three-dot menu &#8594; More &#8594; Export Chat</li>
+      <li>Choose &#8216;Include Media&#8217; when prompted</li>
+      <li>Share or save the resulting .zip file, then drop it here</li>
+    </ol>
+    <button type="button" id="btn-try-again-wm">Try again</button>
+    <p class="fine-print">The &#8216;Without Media&#8217; option exports text only &#8212; voice messages are not included.</p>
+  </main>
+
+  <!-- JSZip must be loaded before the ES module so window.JSZip is defined -->
+  <script src="assets/lib/jszip.min.js"></script>
+  <script type="module" src="assets/js/main.js"></script>
+</body>
+</html>
