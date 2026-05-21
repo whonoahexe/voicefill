@@ -211,6 +211,11 @@ export async function parseZip(file) {
     throw new Error('ZIP file exceeds 500MB limit');
   }
 
+  // Guard: JSZip must be available as a global (loaded via classic <script> tag in index.html)
+  if (typeof JSZip === 'undefined') {
+    throw new Error('ZIP library failed to load — please reload the application');
+  }
+
   // Load ZIP — JSZip UMD build registered window.JSZip by the classic <script> tag
   let zip;
   try {
