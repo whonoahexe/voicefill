@@ -184,7 +184,7 @@ export function assemblePlainText(messages) {
       body = msg.content;
     }
 
-    lines.push(`${msg.timestamp} - ${msg.sender}: ${body}`);
+    lines.push(`${msg.timestamp} - ${msg.sender ?? ''}: ${body}`);
   }
 
   return lines.join('\n');
