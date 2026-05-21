@@ -1,5 +1,4 @@
-// assets/js/ui.js — Screen state machine + event binding + thin results render
-// Walking Skeleton: wires drag-drop and file picker → parseZip → DOM render.
+// assets/js/ui.js — Screen state machine + event binding + full styled results render
 
 import { parseZip, parseFolder, parseTxt } from './parser.js';
 
@@ -10,6 +9,11 @@ const screens = {
   'results':        null,
   'without-media':  null,
 };
+
+// ── Module-level state ────────────────────────────────────────────────────────
+// Holds the plain-text output of the most recent parse so copy/download handlers
+// can access it without being tightly coupled to renderChatLog.
+let currentPlainText = null;
 
 /**
  * Show one screen; hide all others.
@@ -42,38 +46,143 @@ function showParseError(message) {
   screen.appendChild(p);
 }
 
-// ── Results render (thin skeleton — replaced by styled render in Plan 01-03) ──
+// ── Results render ────────────────────────────────────────────────────────────
 
 /**
- * Render parsed messages into #chat-log and set #summary-line.
- * Thin skeleton render — replaced by styled render in Plan 01-03.
- * @param {{ messages: Array, stats: { voiceTotal: number, voiceMatched: number }, rawLines: string[] }} result
+ * Build a single message row element for the chat log.
+ * Uses textContent exclusively — never innerHTML — for all user-supplied values (T-03-01).
+ * @param {{ type: string, timestamp: string, sender?: string, content: string, matched?: boolean, annotation?: string }} msg
+ * @returns {HTMLDivElement}
  */
-function renderSkeletonResults(result) {
-  const { stats, rawLines } = result;
+function renderMessage(msg) {
+  const row = document.createElement('div');
+  row.className = 'message-row';
+
+  const ts = document.createElement('span');
+  ts.className = 'timestamp';
+  ts.textContent = msg.timestamp; // NEVER innerHTML — user data (T-03-01)
+
+  const sender = document.createElement('span');
+  sender.className = 'sender';
+  sender.textContent = (msg.sender || '') + ': '; // NEVER innerHTML — user data (T-03-01)
+
+  const body = document.createElement('span');
+  if (msg.type === 'voice' && msg.matched) {
+    body.className = 'voice-annotation';
+    body.textContent = '[Voice message: transcription pending]';
+    // ERR-02: Phase 2 replaces this with real transcript or [Audio unreadable] if decode fails
+  } else if (msg.type === 'voice' && !msg.matched) {
+    body.className = 'voice-annotation error';
+    body.textContent = msg.annotation || '[Audio file missing]'; // NEVER innerHTML — user data
+  } else if (msg.type === 'voice-omitted') {
+    body.className = 'voice-annotation';
+    body.textContent = '[Audio not available]';
+  } else {
+    body.textContent = msg.content; // NEVER innerHTML — user chat content (T-03-01)
+  }
+
+  row.appendChild(ts);
+  row.appendChild(sender);
+  row.appendChild(body);
+  return row;
+}
+
+/**
+ * Render the full styled chat log into #chat-log and set #summary-line.
+ * Stores plainText on the module-level currentPlainText variable for copy/download.
+ * Replaces the previous renderSkeletonResults from Plan 01-01.
+ * @param {{ messages: Array, plainText: string, stats: { voiceTotal: number, voiceMatched: number }, mode: string }} result
+ */
+function renderChatLog(result) {
+  const { messages, plainText, stats } = result;
+
+  // Store for copy/download handlers
+  currentPlainText = plainText || null;
+
   const summaryEl = document.getElementById('summary-line');
   if (summaryEl) {
-    if (stats && stats.voiceTotal > 0) {
+    if (!stats || stats.voiceTotal === 0) {
+      summaryEl.textContent = 'No voice messages found in this export';
+    } else if (stats.voiceMatched > 0) {
       summaryEl.textContent = stats.voiceMatched + ' of ' + stats.voiceTotal + ' voice messages identified';
-    } else if (stats) {
-      summaryEl.textContent = 'Chat parsed — no voice messages found';
     } else {
-      // Fallback for backward compat
-      summaryEl.textContent = (rawLines ? rawLines.length : 0) + ' lines parsed';
+      // voiceMatched === 0 && voiceTotal > 0 — parse-only mode (INPUT-04) or export with no matched audio
+      summaryEl.textContent = '0 of ' + stats.voiceTotal + ' voice messages available — audio not included in this export';
     }
   }
 
   const log = document.getElementById('chat-log');
   if (!log) return;
-  log.textContent = ''; // clear previous content
+  log.textContent = ''; // clear previous content (safe — not innerHTML)
 
-  // Use rawLines for the thin skeleton render (plain line-by-line display)
-  const lines = rawLines || [];
-  for (const line of lines) {
-    const div = document.createElement('div');
-    div.textContent = line; // NEVER innerHTML — user chat content is untrusted (T-01-02)
-    log.appendChild(div);
+  if (!messages) return;
+  for (const msg of messages) {
+    if (msg.type === 'system') continue; // skip system messages
+    const rowEl = renderMessage(msg);
+    log.appendChild(rowEl);
   }
+}
+
+/**
+ * Copy text to clipboard using navigator.clipboard with execCommand fallback.
+ * On success: changes button label to "Copied!" for 1500ms then reverts.
+ * On failure: shows error label for 3000ms then reverts.
+ * Implements OUT-03 and UI-SPEC Clipboard Copy interaction contract.
+ * @param {string} text
+ * @param {HTMLButtonElement} button
+ */
+async function copyToClipboard(text, button) {
+  const originalLabel = button.textContent;
+
+  const onSuccess = () => {
+    button.textContent = 'Copied!';
+    setTimeout(() => { button.textContent = originalLabel; }, 1500);
+  };
+
+  const onFailure = () => {
+    button.textContent = 'Copy failed — try selecting and copying manually';
+    setTimeout(() => { button.textContent = originalLabel; }, 3000);
+  };
+
+  try {
+    await navigator.clipboard.writeText(text);
+    onSuccess();
+  } catch (_err) {
+    // Fallback: hidden textarea + execCommand (deprecated but widely supported)
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.top = '-9999px';
+    textarea.style.left = '-9999px';
+    document.body.appendChild(textarea);
+    textarea.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    if (ok) {
+      onSuccess();
+    } else {
+      onFailure();
+    }
+  }
+}
+
+/**
+ * Download the given text as voicefill-export.txt via a Blob object URL.
+ * Revokes the URL immediately after triggering the download (T-03-04, no URL leak).
+ * Implements OUT-04 and UI-SPEC File Download interaction contract.
+ * @param {string} text
+ */
+function downloadTxt(text) {
+  const blob = new Blob([text], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'voicefill-export.txt';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url); // immediately revoke to prevent URL leak (T-03-04)
 }
 
 // ── File processing ───────────────────────────────────────────────────────────
@@ -104,7 +213,7 @@ async function processFile(file) {
   if (result.mode === 'without-media') {
     showScreen('without-media');
   } else {
-    renderSkeletonResults(result);
+    renderChatLog(result);
     showScreen('results');
   }
 }
@@ -134,7 +243,7 @@ async function processFolder(fileList) {
   if (result.mode === 'without-media') {
     showScreen('without-media');
   } else {
-    renderSkeletonResults(result);
+    renderChatLog(result);
     showScreen('results');
   }
 }
@@ -188,6 +297,8 @@ export function init() {
   const btnBrowseTxt   = document.getElementById('btn-browse-txt');
   const btnTryAgainWm  = document.getElementById('btn-try-again-wm');
   const btnTryAnother  = document.getElementById('btn-try-another');
+  const btnCopy        = document.getElementById('btn-copy');
+  const btnDownload    = document.getElementById('btn-download');
 
   // ── Drag and Drop ──────────────────────────────────────────────────────────
 
@@ -271,7 +382,30 @@ export function init() {
 
   if (btnTryAnother) {
     btnTryAnother.addEventListener('click', () => {
+      currentPlainText = null;
+      const log = document.getElementById('chat-log');
+      if (log) log.textContent = '';
+      const summaryEl = document.getElementById('summary-line');
+      if (summaryEl) summaryEl.textContent = '';
       showScreen('upload');
+    });
+  }
+
+  // ── Copy to clipboard ──────────────────────────────────────────────────────
+
+  if (btnCopy) {
+    btnCopy.addEventListener('click', (e) => {
+      if (currentPlainText === null) return; // guard: no data yet
+      copyToClipboard(currentPlainText, e.currentTarget);
+    });
+  }
+
+  // ── Download .txt ──────────────────────────────────────────────────────────
+
+  if (btnDownload) {
+    btnDownload.addEventListener('click', () => {
+      if (currentPlainText === null) return; // guard: no data yet
+      downloadTxt(currentPlainText);
     });
   }
 }
