@@ -50,17 +50,25 @@ Plans:
 **Goal**: Voice message placeholders are replaced with real transcripts produced by Whisper running entirely inside a Web Worker — no API key, no server, nothing leaves the device
 **Mode:** mvp
 **Depends on**: Phase 1
-**Requirements**: TRANS-01, TRANS-02, TRANS-03, TRANS-04, TRANS-05
+**Requirements**: TRANS-01, TRANS-02, TRANS-03, TRANS-04, TRANS-05, ERR-02
 **Success Criteria** (what must be TRUE):
   1. On first run, a progress bar shows model download progress with the explicit "~40MB — downloads once, then cached" warning
   2. During transcription, the UI shows "Transcribing X of Y voice messages..." updating per message without freezing
   3. Voice messages produce accurate English transcripts inserted as `[Voice message: "..."]` in the output
   4. Silent or near-silent audio is skipped and annotated as `[No speech detected]` rather than producing hallucinated text
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 02-01: Web Worker scaffold, pipeline singleton, audio decode, and sequential transcription queue (TRANS-01,02,05)
-- [ ] 02-02: Model download progress UI, per-message progress indicator, and silence gate (TRANS-03,04,05)
+**Wave 1:**
+- [ ] 02-01-PLAN.md — Worker pipeline, audio decode+resample, RMS silence gate, dispatch queue, in-place row updates, summary line, model banner, button enable/disable (TRANS-01, TRANS-02, TRANS-03, TRANS-04, TRANS-05, ERR-02)
+
+**Wave 2 *(blocked on Wave 1 completion)*:**
+- [ ] 02-02-PLAN.md — CSS: transcript fade-in keyframe, pending/resolved voice annotation states, model banner styles, disabled button states; end-to-end browser UAT checkpoint (TRANS-03, TRANS-04, TRANS-05)
+
+**Cross-cutting constraints:**
+- XSS prevention: all Worker-returned transcript text via `textContent` only — never `innerHTML` (all plans)
+- CDN import: `@huggingface/transformers` imported via jsdelivr CDN URL in worker.js — bare specifier and node_modules paths fail in Electron renderer without a bundler
+- Two-step audio decode: OfflineAudioContext at 48kHz to decode, second at 16kHz to resample — single-context approach does not auto-resample (Pitfall 5)
 
 ### Phase 3: Package & Ship
 **Goal**: The finished app runs as a self-contained Electron desktop binary, eliminating HTTP serving requirements, and Instagram exports are accepted as a secondary input format
