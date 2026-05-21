@@ -36,7 +36,9 @@ class WhisperSingleton {
       this.instance = pipeline(
         'automatic-speech-recognition',
         'Xenova/whisper-tiny.en',
-        { dtype: 'q8', progress_callback }
+        { progress_callback }
+        // dtype omitted — defaults to fp32; Xenova/whisper-tiny.en's q8 files
+        // are not consistently available across CDN cache states
       );
     }
     return this.instance; // returns the Promise — callers await it
@@ -50,6 +52,9 @@ WhisperSingleton.getInstance((progressData) => {
   self.postMessage(progressData); // forward {status, file, progress, loaded, total} to main thread
 }).then(() => {
   self.postMessage({ status: 'ready' }); // emitted exactly once per Worker lifetime
+}).catch((err) => {
+  console.error('[VoiceFill Worker] Pipeline init failed:', err);
+  self.postMessage({ status: 'error', filename: null, message: 'Model failed to load: ' + err.message });
 });
 
 // ── Part 5: Message handler ───────────────────────────────────────────────────
