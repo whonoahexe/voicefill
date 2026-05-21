@@ -218,6 +218,29 @@ async function getAudioBytes(audioEntry) {
 }
 
 /**
+ * Decode and resample audio to a Float32Array at 16kHz.
+ * Must run on the main thread — OfflineAudioContext is not available in Web Workers.
+ * Two-step: first OfflineAudioContext decodes at native rate; second resamples to 16kHz.
+ * @param {File|Object} audioEntry
+ * @returns {Promise<Float32Array>}
+ */
+async function decodeAudio(audioEntry) {
+  const bytes = await getAudioBytes(audioEntry);
+  // .slice(0) is mandatory: decodeAudioData detaches the ArrayBuffer
+  const decodeCtx = new OfflineAudioContext(1, 1, 48000);
+  const decoded = await decodeCtx.decodeAudioData(bytes.buffer.slice(0));
+  const targetRate = 16000;
+  const targetLength = Math.ceil(decoded.duration * targetRate);
+  const resampleCtx = new OfflineAudioContext(1, targetLength, targetRate);
+  const source = resampleCtx.createBufferSource();
+  source.buffer = decoded;
+  source.connect(resampleCtx.destination);
+  source.start(0);
+  const resampled = await resampleCtx.startRendering();
+  return resampled.getChannelData(0); // Float32Array at 16kHz
+}
+
+/**
  * Update a matched voice row in-place with transcript or error text.
  * Uses CSS.escape for safe filename lookup. textContent only — never innerHTML (T-02-01).
  * @param {{ status: string, filename: string, text?: string }} data
@@ -323,7 +346,7 @@ function onWorkerMessage(e) {
     isWorkerReady = true;
     hideBanner();
     for (const job of pendingQueue) {
-      worker.postMessage(job, [job.audioData.buffer]); // Transferable
+      worker.postMessage(job, [job.pcmData.buffer]); // Transferable
     }
     pendingQueue = [];
     return;
@@ -371,17 +394,29 @@ async function dispatchTranscription(result) {
 
   for (let i = 0; i < voiceMessages.length; i++) {
     const msg = voiceMessages[i];
-    const audioData = await getAudioBytes(msg.audioEntry);
+
+    let pcmData;
+    try {
+      pcmData = await decodeAudio(msg.audioEntry); // decode on main thread (OfflineAudioContext unavailable in Workers)
+    } catch (_err) {
+      // Decode failed — treat as ERR-02 directly without going to Worker
+      transcribeDone++;
+      updateRowInPlace({ status: 'error', filename: msg.basename });
+      updateSummaryLine(transcribeDone, transcribeTotal);
+      if (transcribeDone === transcribeTotal) enableCopyDownload();
+      continue;
+    }
+
     const job = {
       type: 'transcribe',
-      audioData: audioData,
+      pcmData: pcmData,
       filename: msg.basename,
       index: i + 1,
       total: transcribeTotal,
     };
 
     if (isWorkerReady) {
-      worker.postMessage(job, [audioData.buffer]); // Transferable: avoids copy
+      worker.postMessage(job, [pcmData.buffer]); // Transferable: avoids copy
     } else {
       pendingQueue.push(job); // D-02: buffer until 'ready' fires
     }

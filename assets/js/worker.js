@@ -2,7 +2,7 @@
 // Do NOT modify the message protocol — ui.js depends on it.
 //
 // ── Message protocol (main thread → worker) ──────────────────────────────────
-//   { type: 'transcribe', audioData: Uint8Array, filename: string, index: number, total: number }
+//   { type: 'transcribe', pcmData: Float32Array, filename: string, index: number, total: number }
 //
 // ── Message protocol (worker → main thread) ──────────────────────────────────
 //   { status: 'result', filename: string, text: string, index: number, total: number }
@@ -51,26 +51,20 @@ WhisperSingleton.getInstance((progressData) => {
 });
 
 // ── Part 4: Message handler ───────────────────────────────────────────────────
-// Audio decoding: OfflineAudioContext is not available in Dedicated Web Workers.
-// Instead, wrap audioData in a Blob URL so transformers.js can fetch and decode
-// it internally via WebCodecs (available in Workers, Chrome 94+).
+// Receives Float32Array at 16kHz decoded on the main thread (OfflineAudioContext
+// is unavailable in Workers). Passes { raw, sampling_rate } directly to the
+// pipeline — no URL fetch, no AudioContext needed in the Worker.
 self.addEventListener('message', async (e) => {
   if (e.data.type !== 'transcribe') return;
-  const { audioData, filename, index, total } = e.data;
+  const { pcmData, filename, index, total } = e.data;
 
-  let blobUrl = null;
   try {
-    // a. Resolve pipeline (resolves immediately from cached Promise after warm-up)
     const transcriber = await WhisperSingleton.getInstance();
 
-    // b. Wrap raw Opus bytes in a Blob URL — transformers.js fetches and decodes internally
-    const blob = new Blob([audioData], { type: 'audio/ogg' });
-    blobUrl = URL.createObjectURL(blob);
+    // Pass decoded PCM directly — avoids any AudioContext requirement
+    const result = await transcriber({ raw: pcmData, sampling_rate: 16000 });
 
-    // c. Transcribe — pipeline handles decode, resample, and inference
-    const result = await transcriber(blobUrl);
-
-    // d. Text-based silence gate: empty Whisper output = no speech detected (TRANS-05)
+    // Text-based silence gate: empty Whisper output = no speech detected (TRANS-05)
     const text = result.text.trim();
     const output = text === '' ? '[No speech detected]' : text;
 
@@ -80,7 +74,5 @@ self.addEventListener('message', async (e) => {
     // ERR-02: emit error and continue queue — no re-throw, Worker never crashes
     console.warn('[VoiceFill Worker] Error processing', filename, err);
     self.postMessage({ status: 'error', filename, message: err.message });
-  } finally {
-    if (blobUrl) URL.revokeObjectURL(blobUrl);
   }
 });
