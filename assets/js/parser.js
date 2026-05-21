@@ -237,13 +237,15 @@ export async function parseZip(file) {
 
     if (basename === '_chat.txt') {
       chatEntry = zipEntry;
+    } else if (basename.endsWith('.txt') && chatEntry === null) {
+      chatEntry = zipEntry; // fallback: some WhatsApp versions name the file after the conversation
     } else if (basename.endsWith('.opus')) {
       audioFiles.set(basename, zipEntry);
     }
   });
 
   if (chatEntry === null) {
-    throw new Error('No _chat.txt found in ZIP');
+    throw new Error('No chat log found in ZIP (expected _chat.txt or a .txt file)');
   }
 
   // Read chat text (string, not binary)
@@ -280,13 +282,15 @@ export async function parseFolder(fileList) {
 
     if (basename === '_chat.txt') {
       chatFile = file;
+    } else if (basename.endsWith('.txt') && chatFile === null) {
+      chatFile = file; // fallback: some WhatsApp versions name the file after the conversation
     } else if (basename.endsWith('.opus')) {
       audioFiles.set(basename, file); // File object — compatible for Phase 1 (bytes read in Phase 2)
     }
   }
 
   if (chatFile === null) {
-    throw new Error('No _chat.txt found in selected folder');
+    throw new Error('No chat log found in selected folder (expected _chat.txt or a .txt file)');
   }
 
   const rawText = await chatFile.text();

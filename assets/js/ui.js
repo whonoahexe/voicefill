@@ -199,6 +199,7 @@ async function processFile(file) {
   try {
     result = await parseZip(file);
   } catch (err) {
+    console.error('[VoiceFill] parseZip failed:', err);
     showScreen('upload');
     showParseError(err.message);
     return;
