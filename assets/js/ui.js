@@ -316,6 +316,10 @@ export function init() {
     dropZone.classList.remove('drag-over');
   });
 
+  dropZone.addEventListener('dragend', () => {
+    dropZone.classList.remove('drag-over');
+  });
+
   dropZone.addEventListener('drop', (e) => {
     e.preventDefault();
     dropZone.classList.remove('drag-over');
