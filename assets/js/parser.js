@@ -148,8 +148,12 @@ export function matchVoiceToAudio(messages, audioFiles) {
  * @param {{ audioFiles: Map, hasOmitted: boolean, voiceMatched: number }} opts
  * @returns {'with-media'|'without-media'}
  */
-function detectExportMode({ audioFiles, hasOmitted, voiceMatched }) {
-  if (hasOmitted && audioFiles.size === 0 && voiceMatched === 0) {
+function detectExportMode({ audioFiles, hasOmitted, voiceTotal, voiceMatched }) {
+  // Without-media: no audio files in ZIP and evidence of audio content (either <Media omitted>
+  // lines or filename references without matching files). Covers both WhatsApp export styles:
+  // - Old/Android: voice lines show "<Media omitted>"
+  // - New/iOS: voice lines reference PTT-*.opus but files are absent from the ZIP
+  if (audioFiles.size === 0 && (hasOmitted || (voiceTotal > 0 && voiceMatched === 0))) {
     return 'without-media';
   }
   return 'with-media';
@@ -254,7 +258,7 @@ export async function parseZip(file) {
   // Full parse pipeline
   const messages = parseChatText(rawText);
   const { voiceTotal, voiceMatched, hasOmitted } = matchVoiceToAudio(messages, audioFiles);
-  const mode      = detectExportMode({ audioFiles, hasOmitted, voiceMatched });
+  const mode      = detectExportMode({ audioFiles, hasOmitted, voiceTotal, voiceMatched });
   const plainText = assemblePlainText(messages);
 
   // rawLines kept for backward compat (Plan 01-01 skeleton used it; Plan 01-03 removes it)
@@ -297,7 +301,7 @@ export async function parseFolder(fileList) {
 
   const messages = parseChatText(rawText);
   const { voiceTotal, voiceMatched, hasOmitted } = matchVoiceToAudio(messages, audioFiles);
-  const mode      = detectExportMode({ audioFiles, hasOmitted, voiceMatched });
+  const mode      = detectExportMode({ audioFiles, hasOmitted, voiceTotal, voiceMatched });
   const plainText = assemblePlainText(messages);
 
   return { mode, messages, plainText, stats: { voiceTotal, voiceMatched } };
