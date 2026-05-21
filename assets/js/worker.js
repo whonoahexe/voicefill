@@ -36,9 +36,9 @@ class WhisperSingleton {
       this.instance = pipeline(
         'automatic-speech-recognition',
         'Xenova/whisper-tiny.en',
-        { progress_callback }
-        // dtype omitted — defaults to fp32; Xenova/whisper-tiny.en's q8 files
-        // are not consistently available across CDN cache states
+        { dtype: 'fp32', progress_callback }
+        // fp32: avoids MatMulNBits operator in quantized files, incompatible
+        // with ORT WASM in @4.2.0 (latest). ~160MB vs ~40MB but reliable.
       );
     }
     return this.instance; // returns the Promise — callers await it
