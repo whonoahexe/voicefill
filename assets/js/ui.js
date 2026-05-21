@@ -272,7 +272,7 @@ async function processTxt(file) {
   }
 
   // parse-only .txt always returns mode 'with-media' — goes directly to results
-  renderSkeletonResults(result);
+  renderChatLog(result);
   showScreen('results');
 }
 
