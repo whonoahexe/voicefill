@@ -62,7 +62,7 @@ self.addEventListener('message', async (e) => {
     const transcriber = await WhisperSingleton.getInstance();
 
     // Pass decoded PCM directly — avoids any AudioContext requirement
-    const result = await transcriber({ raw: pcmData, sampling_rate: 16000 });
+    const result = await transcriber(pcmData, { sampling_rate: 16000 });
 
     // Text-based silence gate: empty Whisper output = no speech detected (TRANS-05)
     const text = result.text.trim();
