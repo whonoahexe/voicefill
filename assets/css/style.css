@@ -141,6 +141,19 @@ h1 {
   transition: opacity 80ms;
 }
 
+/* Phase 2 — Disabled button states during transcription */
+.btn-primary:disabled,
+#btn-copy:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-secondary:disabled,
+#btn-download:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* ─── Utility classes ────────────────────────────────────────── */
 .muted {
   opacity: 0.5;
@@ -157,6 +170,16 @@ h1 {
   opacity: 0.7;
   font-style: italic;
   margin-top: 8px;
+}
+
+/* Phase 2 — Model download banner (footnote, not a status bar) */
+#model-banner {
+  display: none;
+  font-size: 12px;
+  opacity: 0.6;
+  margin-top: 16px;
+  font-style: italic;
+  text-align: center;
 }
 
 /* ─── Processing Screen ─────────────────────────────────────── */
@@ -327,6 +350,25 @@ h1 {
 }
 
 .voice-annotation.error {
+  font-style: italic;
+  color: var(--color-accent);
+  opacity: 0.7;
+}
+
+/* Phase 2 — Transcript animation */
+@keyframes transcript-appear {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.voice-annotation.resolved {
+  animation: transcript-appear 350ms ease-in forwards;
+  opacity: 1;
+  font-style: normal;
+}
+
+/* Phase 2 — Pending voice row state */
+.voice-annotation.pending {
   font-style: italic;
   opacity: 0.6;
 }
