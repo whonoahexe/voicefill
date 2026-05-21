@@ -26,6 +26,7 @@ let transcribeDone = 0;      // completed count (result or error)
 let btnCopy = null;
 let btnDownload = null;
 let modelBanner = null;
+let modelLoadMaxPct = 0; // running max for banner — progress fires per-file, not overall
 
 /**
  * Show one screen; hide all others.
@@ -294,9 +295,10 @@ function enableCopyDownload() {
 function updateBanner(progressData) {
   if (!modelBanner) return;
   const pct = progressData.progress != null ? Math.round(progressData.progress) : null;
+  if (pct != null && pct > modelLoadMaxPct) modelLoadMaxPct = pct;
   modelBanner.style.display = 'block';
-  modelBanner.textContent = pct != null
-    ? 'Loading model... ' + pct + '% (40MB, downloads once)'
+  modelBanner.textContent = modelLoadMaxPct > 0
+    ? 'Loading model... ' + modelLoadMaxPct + '% (40MB, downloads once)'
     : 'Loading model...'; // textContent — T-02-02
 }
 
@@ -608,6 +610,7 @@ export function init() {
       transcribeTotal = 0;
       transcribeDone = 0;
       pendingQueue = [];
+      modelLoadMaxPct = 0;
       showScreen('upload');
     });
   }

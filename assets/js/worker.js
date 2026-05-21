@@ -35,7 +35,7 @@ class WhisperSingleton {
     if (this.instance === null) {
       this.instance = pipeline(
         'automatic-speech-recognition',
-        'onnx-community/whisper-tiny.en',
+        'Xenova/whisper-tiny.en',
         { dtype: 'q8', progress_callback }
       );
     }
