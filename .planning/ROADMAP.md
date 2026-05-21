@@ -86,11 +86,20 @@ Plans:
   1. User can launch VoiceFill by double-clicking the Electron app — no terminal, no HTTP server required
   2. After the initial Whisper model download, the app operates with zero network requests
   3. User can drop an Instagram JSON export and receive a reconstructed chat log with voice messages transcribed (or a clear "format not supported yet" message if Instagram format verification is blocked)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 03-01: Electron shell, main/renderer process wiring, and offline verification (DIST-01,02)
-- [ ] 03-02: Instagram JSON parser and voice message extraction (PARSE-05)
+**Wave 1:**
+- [ ] 03-01-PLAN.md — Electron shell (electron/main.js + package.json), CSP meta tag for WASM in sandboxed renderer, npm install, portable exe build + smoke-test checkpoint (DIST-01, DIST-02)
+
+**Wave 2 *(blocked on Wave 1 completion)*:**
+- [ ] 03-02-PLAN.md — Instagram ZIP parser (parseInstagram()), Latin-1 encoding fix, timestamp sort, UI routing for Instagram ZIPs and standalone JSON drops (PARSE-05)
+
+**Cross-cutting constraints:**
+- CSP meta tag required in index.html before packaging — silent WASM failure in packaged exe if missed
+- textContent enforced for all Instagram string fields — same XSS rule as Phase 1 applies
+- Instagram audio basename extraction: uri.split('/').pop() — never resolve full uri as path
+- Instagram messages sorted ascending by timestamp_ms — Instagram exports newest-first
 
 ## Progress
 
