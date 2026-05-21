@@ -32,9 +32,18 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 3 plans
 
 Plans:
+**Wave 1:**
 - [ ] 01-01-PLAN.md — Walking Skeleton: project scaffold, JSZip vendor, drag-drop + file picker, ZIP extraction, thin DOM render (INPUT-01, INPUT-02, PARSE-01, PARSE-04, UI-01–04)
+
+**Wave 2 *(blocked on Wave 1 completion)*:**
 - [ ] 01-02-PLAN.md — Complete parser: full _chat.txt parse, voice detection, audio matching, error annotations, all input modes, without-media screen (INPUT-03, INPUT-04, PARSE-02, PARSE-03, ERR-01–04)
+
+**Wave 3 *(blocked on Wave 2 completion)*:**
 - [ ] 01-03-PLAN.md — Results screen: styled chat log, copy to clipboard, download .txt, sticky header, Try another file (OUT-01–04, UI-01–04, ERR-02)
+
+**Cross-cutting constraints:**
+- XSS prevention: all chat content via `textContent`, never `innerHTML` (all plans)
+- ZIP path normalization: `zip.forEach` basename map, never `zip.files[path]` directly (01-01, 01-02)
 **UI hint**: yes
 
 ### Phase 2: Whisper Worker
