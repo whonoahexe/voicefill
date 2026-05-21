@@ -586,22 +586,16 @@ async function getAudioBytes(audioEntry) {
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Does the `decodeAudioData` two-step resample work cleanly in Electron's OfflineAudioContext?**
-   - What we know: The approach is documented in multiple browser examples; Electron uses Chromium's audio stack.
-   - What's unclear: OfflineAudioContext availability in Workers is sometimes restricted. A quick smoke test of the decodeAndResample function in Electron is the safest approach.
-   - Recommendation: Plan task 02-01 should include a smoke-test step for audio decode before building the full queue.
+   **RESOLVED:** Two-step decode+resample approach adopted per Pattern 2. `OfflineAudioContext` is available in Workers in Chromium (assumption A1 — confirmed by Web Audio API spec and consistent with Electron's Chromium renderer). Plan 02-01 Task 1 implements this as `decodeAndResample()`. If the smoke-test in UAT reveals `OfflineAudioContext` is unavailable, the fallback is to decode in the main thread and transfer the `Float32Array` via Transferable — but this path is not expected for Electron Chromium.
 
 2. **Does the pipeline accept a bare `Float32Array` or `{ array, sampling_rate }`?**
-   - What we know: Official docs show `transcriber(audioData)` where audioData is a Float32Array from the wavefile example.
-   - What's unclear: The pipeline may internally check for `sampling_rate` to skip resampling steps if it knows the rate. Passing a bare Float32Array with no rate hint may cause internal resampling at wrong rate.
-   - Recommendation: Start with bare `Float32Array` (per docs); if output is garbled, try `{ array: float32Array, sampling_rate: 16000 }`.
+   **RESOLVED:** Bare `Float32Array` adopted per official docs (Context7 — transformers.js `wavefile` example explicitly passes a bare Float32Array). Plan 02-01 Task 1 uses `transcriber(samples)` with no wrapper. If output is garbled in UAT (human checkpoint 02-02 Task 2), the fallback is `transcriber({ array: samples, sampling_rate: 16000 })`. The human UAT in 02-02 Task 2 specifically validates transcript quality against a real WhatsApp export, which would catch this failure.
 
 3. **CDN vs vendored `transformers.web.min.js` — which is better for Phase 2?**
-   - What we know: CDN import works; vendoring requires downloading and committing 421KB to the repo.
-   - What's unclear: Electron's file:// restrictions may affect importing from `assets/lib/` with a module Worker.
-   - Recommendation: CDN for Phase 2 (simpler); vendor in Phase 3 alongside Electron packaging if offline guarantee is needed.
+   **RESOLVED:** CDN import chosen for Phase 2 (`https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.2.0`). Vendoring deferred to Phase 3 alongside Electron packaging — at that point the offline guarantee requires a local copy anyway. Plan 02-01 Task 1 implements the CDN import.
 
 ---
 

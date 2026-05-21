@@ -63,6 +63,13 @@ Plans:
 - [ ] 02-01-PLAN.md — Worker pipeline, audio decode+resample, RMS silence gate, dispatch queue, in-place row updates, summary line, model banner, button enable/disable (TRANS-01, TRANS-02, TRANS-03, TRANS-04, TRANS-05, ERR-02)
 
 **Wave 2 *(blocked on Wave 1 completion)*:**
+- [ ] 02-02-PLAN.md — CSS fade-in pulse, pending/resolved states, model banner styling, button disabled state, UAT checkpoint (TRANS-03, TRANS-04, TRANS-05)
+
+**Cross-cutting constraints:**
+- textContent only for all Worker-returned strings — never innerHTML (XSS rule from Phase 1, applies to transcripts, progress banners, summary lines)
+- Worker constructed once at init(), reused across "Try another file" flows — isWorkerReady never reset
+
+**Wave 2 *(blocked on Wave 1 completion)*:**
 - [ ] 02-02-PLAN.md — CSS: transcript fade-in keyframe, pending/resolved voice annotation states, model banner styles, disabled button states; end-to-end browser UAT checkpoint (TRANS-03, TRANS-04, TRANS-05)
 
 **Cross-cutting constraints:**
