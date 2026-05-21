@@ -29,11 +29,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. "Without media" exports show a clear re-export explanation instead of silently failing
   4. Reconstructed chat log is displayed inline with `[Voice message: placeholder]`, `[Audio unreadable]`, `[Audio file missing]`, and `[Audio not available]` annotations in the correct positions
   5. User can copy the full reconstructed log to clipboard and download it as a `.txt` file; the parchment aesthetic and monospace typography are present throughout
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 01-01: File input, ZIP extraction, and chat parser (INPUT, PARSE-01–04, ERR-01,03,04)
-- [ ] 01-02: Error annotation, output rendering, copy/download, and UI design (ERR-02, OUT-01–04, UI-01–04)
+- [ ] 01-01-PLAN.md — Walking Skeleton: project scaffold, JSZip vendor, drag-drop + file picker, ZIP extraction, thin DOM render (INPUT-01, INPUT-02, PARSE-01, PARSE-04, UI-01–04)
+- [ ] 01-02-PLAN.md — Complete parser: full _chat.txt parse, voice detection, audio matching, error annotations, all input modes, without-media screen (INPUT-03, INPUT-04, PARSE-02, PARSE-03, ERR-01–04)
+- [ ] 01-03-PLAN.md — Results screen: styled chat log, copy to clipboard, download .txt, sticky header, Try another file (OUT-01–04, UI-01–04, ERR-02)
 **UI hint**: yes
 
 ### Phase 2: Whisper Worker
@@ -74,6 +75,6 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Parse Pipeline | 0/2 | Not started | - |
+| 1. Parse Pipeline | 0/3 | Planned | - |
 | 2. Whisper Worker | 0/2 | Not started | - |
 | 3. Package & Ship | 0/2 | Not started | - |
