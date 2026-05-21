@@ -24,6 +24,15 @@
 
     <p class="fine-print">Accepts .zip from WhatsApp &#8216;Export Chat&#8217; &#8594; &#8216;Attach Media&#8217;</p>
     <input type="file" id="file-input" accept=".zip" style="display:none">
+
+    <p class="muted" style="margin-top:24px;">or use another format</p>
+
+    <input type="file" id="folder-input" webkitdirectory style="display:none">
+    <button type="button" id="btn-browse-folder">Browse extracted folder</button>
+
+    <input type="file" id="txt-input" accept=".txt" style="display:none">
+    <button type="button" id="btn-browse-txt">Load .txt chat log</button>
+    <p class="fine-print">Parse-only: voice positions identified, no audio transcription</p>
   </main>
 
   <!-- Screen 2: Processing -->

@@ -1,7 +1,7 @@
 // assets/js/ui.js — Screen state machine + event binding + thin results render
 // Walking Skeleton: wires drag-drop and file picker → parseZip → DOM render.
 
-import { parseZip } from './parser.js';
+import { parseZip, parseFolder, parseTxt } from './parser.js';
 
 // ── Screen references ─────────────────────────────────────────────────────────
 const screens = {
@@ -45,23 +45,31 @@ function showParseError(message) {
 // ── Results render (thin skeleton — replaced by styled render in Plan 01-03) ──
 
 /**
- * Render raw chat lines into #chat-log and set #summary-line.
- * @param {{ rawLines: string[] }} result
+ * Render parsed messages into #chat-log and set #summary-line.
+ * Thin skeleton render — replaced by styled render in Plan 01-03.
+ * @param {{ messages: Array, stats: { voiceTotal: number, voiceMatched: number }, rawLines: string[] }} result
  */
-function renderSkeletonResults({ rawLines }) {
+function renderSkeletonResults(result) {
+  const { stats, rawLines } = result;
   const summaryEl = document.getElementById('summary-line');
   if (summaryEl) {
-    summaryEl.textContent = rawLines.length + ' lines parsed';
+    if (stats && stats.voiceTotal > 0) {
+      summaryEl.textContent = stats.voiceMatched + ' of ' + stats.voiceTotal + ' voice messages identified';
+    } else if (stats) {
+      summaryEl.textContent = 'Chat parsed — no voice messages found';
+    } else {
+      // Fallback for backward compat
+      summaryEl.textContent = (rawLines ? rawLines.length : 0) + ' lines parsed';
+    }
   }
 
   const log = document.getElementById('chat-log');
   if (!log) return;
   log.textContent = ''; // clear previous content
 
-  // Inline monospace style for the Walking Skeleton thin render
-  log.style.cssText = 'font-family: "Courier Prime", "Courier New", Courier, monospace; white-space: pre-wrap; line-height: 1.6;';
-
-  for (const line of rawLines) {
+  // Use rawLines for the thin skeleton render (plain line-by-line display)
+  const lines = rawLines || [];
+  for (const line of lines) {
     const div = document.createElement('div');
     div.textContent = line; // NEVER innerHTML — user chat content is untrusted (T-01-02)
     log.appendChild(div);
@@ -71,7 +79,7 @@ function renderSkeletonResults({ rawLines }) {
 // ── File processing ───────────────────────────────────────────────────────────
 
 /**
- * Show processing screen, parse ZIP, enforce 300ms minimum display, then show results.
+ * Show processing screen, parse ZIP, enforce 300ms minimum display, then route to results.
  * @param {File} file
  */
 async function processFile(file) {
@@ -93,6 +101,68 @@ async function processFile(file) {
     await new Promise(r => setTimeout(r, 300 - elapsed));
   }
 
+  if (result.mode === 'without-media') {
+    showScreen('without-media');
+  } else {
+    renderSkeletonResults(result);
+    showScreen('results');
+  }
+}
+
+/**
+ * Show processing screen, parse extracted folder (INPUT-03), enforce 300ms minimum, then route.
+ * @param {FileList} fileList
+ */
+async function processFolder(fileList) {
+  showScreen('processing');
+  const start = Date.now();
+
+  let result;
+  try {
+    result = await parseFolder(fileList);
+  } catch (err) {
+    showScreen('upload');
+    showParseError(err.message);
+    return;
+  }
+
+  const elapsed = Date.now() - start;
+  if (elapsed < 300) {
+    await new Promise(r => setTimeout(r, 300 - elapsed));
+  }
+
+  if (result.mode === 'without-media') {
+    showScreen('without-media');
+  } else {
+    renderSkeletonResults(result);
+    showScreen('results');
+  }
+}
+
+/**
+ * Show processing screen, parse raw .txt chat log (INPUT-04), enforce 300ms minimum, then route.
+ * Parse-only mode always goes to results (mode is always 'with-media' per Pitfall 5).
+ * @param {File} file
+ */
+async function processTxt(file) {
+  showScreen('processing');
+  const start = Date.now();
+
+  let result;
+  try {
+    result = await parseTxt(file);
+  } catch (err) {
+    showScreen('upload');
+    showParseError(err.message);
+    return;
+  }
+
+  const elapsed = Date.now() - start;
+  if (elapsed < 300) {
+    await new Promise(r => setTimeout(r, 300 - elapsed));
+  }
+
+  // parse-only .txt always returns mode 'with-media' — goes directly to results
   renderSkeletonResults(result);
   showScreen('results');
 }
@@ -109,11 +179,15 @@ export function init() {
   screens['results']       = document.getElementById('screen-results');
   screens['without-media'] = document.getElementById('screen-without-media');
 
-  const dropZone  = document.getElementById('drop-zone');
-  const btnBrowse = document.getElementById('btn-browse');
-  const fileInput = document.getElementById('file-input');
-  const btnTryAgainWm   = document.getElementById('btn-try-again-wm');
-  const btnTryAnother   = document.getElementById('btn-try-another');
+  const dropZone       = document.getElementById('drop-zone');
+  const btnBrowse      = document.getElementById('btn-browse');
+  const fileInput      = document.getElementById('file-input');
+  const folderInput    = document.getElementById('folder-input');
+  const btnBrowseFolder = document.getElementById('btn-browse-folder');
+  const txtInput       = document.getElementById('txt-input');
+  const btnBrowseTxt   = document.getElementById('btn-browse-txt');
+  const btnTryAgainWm  = document.getElementById('btn-try-again-wm');
+  const btnTryAnother  = document.getElementById('btn-try-another');
 
   // ── Drag and Drop ──────────────────────────────────────────────────────────
 
@@ -153,6 +227,39 @@ export function init() {
     e.target.value = ''; // reset so same file can be re-selected
     processFile(file);
   });
+
+  // ── Folder Picker (INPUT-03) ───────────────────────────────────────────────
+
+  if (btnBrowseFolder) {
+    btnBrowseFolder.addEventListener('click', () => {
+      folderInput.click();
+    });
+  }
+
+  if (folderInput) {
+    folderInput.addEventListener('change', (e) => {
+      if (!e.target.files || e.target.files.length === 0) return;
+      processFolder(e.target.files);
+      e.target.value = ''; // reset so same folder can be re-selected
+    });
+  }
+
+  // ── Txt File Picker (INPUT-04) ─────────────────────────────────────────────
+
+  if (btnBrowseTxt) {
+    btnBrowseTxt.addEventListener('click', () => {
+      txtInput.click();
+    });
+  }
+
+  if (txtInput) {
+    txtInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      e.target.value = ''; // reset so same file can be re-selected
+      processTxt(file);
+    });
+  }
 
   // ── Navigation ─────────────────────────────────────────────────────────────
 

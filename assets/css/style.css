@@ -106,6 +106,8 @@ h1 {
 /* Secondary button */
 .btn-secondary,
 #btn-browse,
+#btn-browse-folder,
+#btn-browse-txt,
 #btn-download,
 #btn-try-again-wm,
 #btn-try-another {
@@ -123,6 +125,8 @@ h1 {
 
 .btn-secondary:hover,
 #btn-browse:hover,
+#btn-browse-folder:hover,
+#btn-browse-txt:hover,
 #btn-download:hover,
 #btn-try-again-wm:hover,
 #btn-try-another:hover {
@@ -131,6 +135,8 @@ h1 {
 
 .btn-secondary:active,
 #btn-browse:active,
+#btn-browse-folder:active,
+#btn-browse-txt:active,
 #btn-download:active,
 #btn-try-again-wm:active,
 #btn-try-another:active {
@@ -270,4 +276,16 @@ h1 {
 
 #screen-without-media #btn-try-again-wm {
   margin-bottom: 16px;
+}
+
+/* ─── Voice Annotation Styles ───────────────────────────────── */
+/* Applied to voice message placeholders in the results chat log */
+.voice-annotation {
+  font-style: italic;
+  opacity: 0.6;
+}
+
+.voice-annotation.error {
+  font-style: italic;
+  opacity: 0.6;
 }
