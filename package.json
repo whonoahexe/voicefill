@@ -1,0 +1,29 @@
+{
+  "name": "voicefill",
+  "version": "1.0.0",
+  "description": "Transcribe WhatsApp voice messages offline",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^42.2.0",
+    "electron-builder": "^26.8.1"
+  },
+  "build": {
+    "appId": "com.voicefill.app",
+    "productName": "VoiceFill",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "index.html",
+      "assets/**/*",
+      "electron/**/*"
+    ],
+    "win": {
+      "target": "portable"
+    }
+  }
+}

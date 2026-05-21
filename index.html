@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <!-- Required for WASM compilation in packaged Electron app with sandbox: true -->
+  <!-- Source: github.com/huggingface/transformers.js/issues/774 -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://cdn.jsdelivr.net https://huggingface.co https://cdn-lfs.hf.co https://cdn-lfs-us-1.hf.co; worker-src 'self' blob:; img-src 'self' data:;">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>VoiceFill</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -17,12 +20,12 @@
     <p class="tagline">Reconstruct your WhatsApp voice messages</p>
 
     <div id="drop-zone" role="region" aria-label="File upload area">
-      <p>Drop your WhatsApp export ZIP here</p>
+      <p>Drop your WhatsApp or Instagram export ZIP here</p>
       <p class="muted">or</p>
       <button type="button" id="btn-browse">Browse for file</button>
     </div>
 
-    <p class="fine-print">Accepts .zip from WhatsApp &#8216;Export Chat&#8217; &#8594; &#8216;Attach Media&#8217;</p>
+    <p class="fine-print">Accepts .zip from WhatsApp &#8216;Export Chat&#8217; &#8594; &#8216;Attach Media&#8217;. Also accepts Instagram JSON exports (.zip with media files)</p>
     <input type="file" id="file-input" accept=".zip" style="display:none">
 
     <p class="muted" style="margin-top:24px;">or use another format</p>
