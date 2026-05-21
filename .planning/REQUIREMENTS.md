@@ -8,11 +8,11 @@ _Defined: 2026-05-21_
 
 - [ ] **INPUT-01**: User can drop a WhatsApp export ZIP onto the upload area (drag-and-drop)
 - [ ] **INPUT-02**: User can select a WhatsApp export ZIP via a file picker button (click-to-browse fallback)
-- [ ] **INPUT-03**: User can select a folder of extracted files (for users who already unzipped manually)
-- [ ] **INPUT-04**: User can paste or load a raw `.txt` chat log without audio (parse-only mode, voice lines annotated as [Audio not available])
+- [x] **INPUT-03**: User can select a folder of extracted files (for users who already unzipped manually)
+- [x] **INPUT-04**: User can paste or load a raw `.txt` chat log without audio (parse-only mode, voice lines annotated as [Audio not available])
 - [ ] **PARSE-01**: Tool detects WhatsApp "with media" exports and extracts `_chat.txt` + `.opus` audio files from the ZIP
-- [ ] **PARSE-02**: Tool detects WhatsApp "without media" exports (`<Media omitted>` placeholders) and shows a clear error explaining the re-export step — does not proceed silently
-- [ ] **PARSE-03**: Tool parses voice message lines in both WhatsApp filename formats (Android `PTT-*.opus` and iOS `00000023-AUDIO-*.opus`) and matches them to audio files by basename, ignoring ZIP subfolder paths
+- [x] **PARSE-02**: Tool detects WhatsApp "without media" exports (`<Media omitted>` placeholders) and shows a clear error explaining the re-export step — does not proceed silently
+- [x] **PARSE-03**: Tool parses voice message lines in both WhatsApp filename formats (Android `PTT-*.opus` and iOS `00000023-AUDIO-*.opus`) and matches them to audio files by basename, ignoring ZIP subfolder paths
 - [ ] **PARSE-04**: Tool handles WhatsApp `_chat.txt` format variations: strips BOM and Unicode directional marks, detects US-locale date format (M/D/YY) as v1 baseline
 - [ ] **PARSE-05**: Instagram JSON export is parsed and voice messages extracted (secondary — behind WhatsApp in priority; may be incomplete in v1 if format verification is blocked)
 
@@ -26,10 +26,10 @@ _Defined: 2026-05-21_
 
 ### Error Handling
 
-- [ ] **ERR-01**: "Without media" export detected → show friendly explanation with re-export instructions before failing
-- [ ] **ERR-02**: Corrupt or undecodable `.opus` file → annotate that message as `[Audio unreadable]` and continue with the rest of the queue
-- [ ] **ERR-03**: Voice message line in chat log has no matching audio file in ZIP → annotate as `[Audio file missing]` in output
-- [ ] **ERR-04**: Audio file in ZIP has no matching voice line in chat log → silently ignored (orphan files don't affect output)
+- [x] **ERR-01**: "Without media" export detected → show friendly explanation with re-export instructions before failing
+- [ ] **ERR-02**: Corrupt or undecodable `.opus` file → annotate that message as `[Audio unreadable]` and continue with the rest of the queue (Phase 2 — requires audio decode)
+- [x] **ERR-03**: Voice message line in chat log has no matching audio file in ZIP → annotate as `[Audio file missing]` in output
+- [x] **ERR-04**: Audio file in ZIP has no matching voice line in chat log → silently ignored (orphan files don't affect output)
 
 ### Output
 
@@ -72,16 +72,16 @@ _Defined: 2026-05-21_
 |--------|-------|--------|
 | INPUT-01 | Phase 1 | Pending |
 | INPUT-02 | Phase 1 | Pending |
-| INPUT-03 | Phase 1 | Pending |
-| INPUT-04 | Phase 1 | Pending |
+| INPUT-03 | Phase 1 | Complete (01-02) |
+| INPUT-04 | Phase 1 | Complete (01-02) |
 | PARSE-01 | Phase 1 | Pending |
-| PARSE-02 | Phase 1 | Pending |
-| PARSE-03 | Phase 1 | Pending |
+| PARSE-02 | Phase 1 | Complete (01-02) |
+| PARSE-03 | Phase 1 | Complete (01-02) |
 | PARSE-04 | Phase 1 | Pending |
-| ERR-01 | Phase 1 | Pending |
-| ERR-02 | Phase 1 | Pending |
-| ERR-03 | Phase 1 | Pending |
-| ERR-04 | Phase 1 | Pending |
+| ERR-01 | Phase 1 | Complete (01-02) |
+| ERR-02 | Phase 1 | Deferred to Phase 2 |
+| ERR-03 | Phase 1 | Complete (01-02) |
+| ERR-04 | Phase 1 | Complete (01-02) |
 | OUT-01 | Phase 1 | Pending |
 | OUT-02 | Phase 1 | Pending |
 | OUT-03 | Phase 1 | Pending |

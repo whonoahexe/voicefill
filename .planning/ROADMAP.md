@@ -36,7 +36,7 @@ Plans:
 - [x] 01-01-PLAN.md — Walking Skeleton: project scaffold, JSZip vendor, drag-drop + file picker, ZIP extraction, thin DOM render (INPUT-01, INPUT-02, PARSE-01, PARSE-04, UI-01–04) — completed 2026-05-21
 
 **Wave 2 *(blocked on Wave 1 completion)*:**
-- [ ] 01-02-PLAN.md — Complete parser: full _chat.txt parse, voice detection, audio matching, error annotations, all input modes, without-media screen (INPUT-03, INPUT-04, PARSE-02, PARSE-03, ERR-01–04)
+- [x] 01-02-PLAN.md — Complete parser: full _chat.txt parse, voice detection, audio matching, error annotations, all input modes, without-media screen (INPUT-03, INPUT-04, PARSE-02, PARSE-03, ERR-01–04) — completed 2026-05-21
 
 **Wave 3 *(blocked on Wave 2 completion)*:**
 - [ ] 01-03-PLAN.md — Results screen: styled chat log, copy to clipboard, download .txt, sticky header, Try another file (OUT-01–04, UI-01–04, ERR-02)
@@ -84,6 +84,6 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Parse Pipeline | 1/3 | In progress | - |
+| 1. Parse Pipeline | 2/3 | In progress | - |
 | 2. Whisper Worker | 0/2 | Not started | - |
 | 3. Package & Ship | 0/2 | Not started | - |
