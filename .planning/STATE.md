@@ -80,5 +80,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-21
-Stopped at: Plan 01-03 complete — Phase 1 Parse Pipeline fully delivered
-Resume file: None — Phase 1 complete; begin Phase 2 planning with /gsd:discuss-phase 2
+Stopped at: Phase 2 context gathered — ready for planning
+Resume file: .planning/phases/02-whisper-worker/02-CONTEXT.md
