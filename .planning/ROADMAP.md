@@ -12,7 +12,7 @@ Three phases, each delivering a working vertical slice. Phase 1 builds the compl
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Parse Pipeline** - End-to-end chat reconstruction with placeholder transcripts (no ML)
+- [x] **Phase 1: Parse Pipeline** - End-to-end chat reconstruction with placeholder transcripts (no ML) — completed 2026-05-21
 - [ ] **Phase 2: Whisper Worker** - Real in-browser transcription via transformers.js Web Worker
 - [ ] **Phase 3: Package & Ship** - Electron packaging, offline guarantee, and Instagram support
 
@@ -39,7 +39,7 @@ Plans:
 - [x] 01-02-PLAN.md — Complete parser: full _chat.txt parse, voice detection, audio matching, error annotations, all input modes, without-media screen (INPUT-03, INPUT-04, PARSE-02, PARSE-03, ERR-01–04) — completed 2026-05-21
 
 **Wave 3 *(blocked on Wave 2 completion)*:**
-- [ ] 01-03-PLAN.md — Results screen: styled chat log, copy to clipboard, download .txt, sticky header, Try another file (OUT-01–04, UI-01–04, ERR-02)
+- [x] 01-03-PLAN.md — Results screen: styled chat log, copy to clipboard, download .txt, sticky header, Try another file (OUT-01–04, UI-01–04, ERR-02) — completed 2026-05-21
 
 **Cross-cutting constraints:**
 - XSS prevention: all chat content via `textContent`, never `innerHTML` (all plans)
@@ -84,6 +84,6 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Parse Pipeline | 2/3 | In progress | - |
+| 1. Parse Pipeline | 3/3 | Complete | 2026-05-21 |
 | 2. Whisper Worker | 0/2 | Not started | - |
 | 3. Package & Ship | 0/2 | Not started | - |
