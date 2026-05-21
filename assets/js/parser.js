@@ -316,8 +316,10 @@ export async function parseTxt(file) {
   const messages   = parseChatText(rawText);
   const audioFiles = new Map(); // empty — no audio in parse-only mode
 
-  const { voiceTotal, voiceMatched, hasOmitted } = matchVoiceToAudio(messages, audioFiles);
-  const mode      = detectExportMode({ audioFiles, hasOmitted, voiceMatched });
+  const { voiceTotal, voiceMatched } = matchVoiceToAudio(messages, audioFiles);
+  // Always treat parse-only .txt as 'with-media' — voice-omitted lines render as
+  // '[Audio not available]' and the results screen is shown regardless of export type (WR-04).
+  const mode      = 'with-media';
   const plainText = assemblePlainText(messages);
 
   return { mode, messages, plainText, stats: { voiceTotal, voiceMatched } };
