@@ -237,9 +237,6 @@ export async function parseZip(file) {
 
     if (basename === '_chat.txt') {
       chatEntry = zipEntry;
-    } else if (basename.endsWith('.txt') && chatEntry === null) {
-      // Fallback: first .txt found if _chat.txt not present at root
-      chatEntry = zipEntry;
     } else if (basename.endsWith('.opus')) {
       audioFiles.set(basename, zipEntry);
     }
@@ -282,8 +279,6 @@ export async function parseFolder(fileList) {
     const basename = file.name; // FileList entries already have just the filename
 
     if (basename === '_chat.txt') {
-      chatFile = file;
-    } else if (basename.endsWith('.txt') && chatFile === null) {
       chatFile = file;
     } else if (basename.endsWith('.opus')) {
       audioFiles.set(basename, file); // File object — compatible for Phase 1 (bytes read in Phase 2)
