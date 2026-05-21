@@ -5,7 +5,7 @@
   "main": "electron/main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --win portable"
+    "build": "set CSC_IDENTITY_AUTO_DISCOVERY=false && electron-builder --win portable"
   },
   "devDependencies": {
     "electron": "^42.2.0",
