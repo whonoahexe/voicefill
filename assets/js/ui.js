@@ -15,6 +15,18 @@ const screens = {
 // can access it without being tightly coupled to renderChatLog.
 let currentPlainText = null;
 
+// Phase 2: Worker lifecycle state
+let worker = null;           // singleton Worker instance
+let isWorkerReady = false;   // true after first 'ready' message (Pitfall 6)
+let pendingQueue = [];       // jobs buffered while model is still loading (D-02)
+let transcribeTotal = 0;     // voice messages to process in this session
+let transcribeDone = 0;      // completed count (result or error)
+
+// Phase 2: DOM refs promoted to module scope (resolved at init() time)
+let btnCopy = null;
+let btnDownload = null;
+let modelBanner = null;
+
 /**
  * Show one screen; hide all others.
  * @param {'upload'|'processing'|'results'|'without-media'} name
@@ -68,8 +80,9 @@ function renderMessage(msg) {
 
   const body = document.createElement('span');
   if (msg.type === 'voice' && msg.matched) {
-    body.className = 'voice-annotation';
+    body.className = 'voice-annotation pending';
     body.textContent = '[Voice message: transcription pending]';
+    row.dataset.filename = msg.basename; // enables querySelector lookup by Worker result handler
     // ERR-02: Phase 2 replaces this with real transcript or [Audio unreadable] if decode fails
   } else if (msg.type === 'voice' && !msg.matched) {
     body.className = 'voice-annotation error';
@@ -185,6 +198,194 @@ function downloadTxt(text) {
   URL.revokeObjectURL(url); // immediately revoke to prevent URL leak (T-03-04)
 }
 
+// ── Phase 2: Worker helper functions ─────────────────────────────────────────
+
+/**
+ * Extract raw audio bytes from a voice message entry.
+ * Handles both ZIP mode (ZipObject) and folder mode (File).
+ * @param {File|Object} audioEntry
+ * @returns {Promise<Uint8Array>}
+ */
+async function getAudioBytes(audioEntry) {
+  if (audioEntry instanceof File) {
+    const buf = await audioEntry.arrayBuffer();
+    return new Uint8Array(buf);
+  } else {
+    // ZipObject (JSZip) — async('uint8array') returns Uint8Array directly
+    return await audioEntry.async('uint8array');
+  }
+}
+
+/**
+ * Update a matched voice row in-place with transcript or error text.
+ * Uses CSS.escape for safe filename lookup. textContent only — never innerHTML (T-02-01).
+ * @param {{ status: string, filename: string, text?: string }} data
+ */
+function updateRowInPlace(data) {
+  const row = document.querySelector('[data-filename="' + CSS.escape(data.filename) + '"]');
+  if (!row) return;
+  const body = row.querySelector('.voice-annotation');
+  if (!body) return;
+
+  if (data.status === 'error') {
+    body.textContent = '[Audio unreadable]'; // ERR-02 / D-13
+    body.classList.remove('pending');
+    body.classList.add('error');
+  } else {
+    const text = data.text === '[No speech detected]'
+      ? '[No speech detected]'                    // D-13 silence annotation
+      : '[Voice message: "' + data.text + '"]';   // D-13 / OUT-01 transcript format
+    body.textContent = text; // textContent ONLY — never innerHTML (T-02-01)
+    body.classList.remove('pending');
+    body.classList.add('resolved'); // CSS handles fade-in via .resolved animation (D-06)
+  }
+}
+
+/**
+ * Update the summary line with transcription progress.
+ * D-08: "Transcribing N of M..." while in progress.
+ * D-09: "X of M voice messages transcribed — Y silent" when done.
+ * @param {number} done
+ * @param {number} total
+ */
+function updateSummaryLine(done, total) {
+  const summaryEl = document.getElementById('summary-line');
+  if (!summaryEl) return;
+
+  if (done < total) {
+    // D-08: in-progress format
+    summaryEl.textContent = 'Transcribing ' + done + ' of ' + total + ' voice messages...';
+  } else {
+    // D-09: final summary with silence count
+    const allRows = document.querySelectorAll('[data-filename]');
+    let silentCount = 0;
+    allRows.forEach(function(row) {
+      const body = row.querySelector('.voice-annotation');
+      if (body && body.textContent === '[No speech detected]') silentCount++;
+    });
+    const transcribed = total - silentCount;
+    summaryEl.textContent = transcribed + ' of ' + total + ' voice messages transcribed — ' + silentCount + ' silent';
+  }
+}
+
+/**
+ * Disable Copy and Download buttons while transcription is in progress (D-05).
+ * Sets disabled attribute and inline opacity for immediate visual feedback.
+ */
+function disableCopyDownload() {
+  if (btnCopy)     { btnCopy.disabled = true;     btnCopy.style.opacity = '0.4'; }
+  if (btnDownload) { btnDownload.disabled = true;  btnDownload.style.opacity = '0.4'; }
+}
+
+/**
+ * Enable Copy and Download buttons after all transcription is complete (D-05).
+ * Clears inline opacity so natural CSS takes over.
+ */
+function enableCopyDownload() {
+  if (btnCopy)     { btnCopy.disabled = false;     btnCopy.style.opacity = ''; }
+  if (btnDownload) { btnDownload.disabled = false;  btnDownload.style.opacity = ''; }
+}
+
+/**
+ * Show or update the model download progress banner (D-07).
+ * Format: "Loading model... 62% (40MB, downloads once)"
+ * @param {{ progress?: number }} progressData
+ */
+function updateBanner(progressData) {
+  if (!modelBanner) return;
+  const pct = progressData.progress != null ? Math.round(progressData.progress) : null;
+  modelBanner.style.display = 'block';
+  modelBanner.textContent = pct != null
+    ? 'Loading model... ' + pct + '% (40MB, downloads once)'
+    : 'Loading model...'; // textContent — T-02-02
+}
+
+/**
+ * Hide the model download progress banner after Worker emits 'ready'.
+ */
+function hideBanner() {
+  if (!modelBanner) return;
+  modelBanner.style.display = 'none';
+}
+
+/**
+ * Handle all messages from the Worker.
+ * Routes: ready → drain queue; progress → update banner; result/error → update row + summary.
+ * @param {MessageEvent} e
+ */
+function onWorkerMessage(e) {
+  const data = e.data;
+
+  if (data.status === 'ready') {
+    // D-03: Worker is ready — mark it, hide banner, drain any buffered jobs
+    isWorkerReady = true;
+    hideBanner();
+    for (const job of pendingQueue) {
+      worker.postMessage(job, [job.audioData.buffer]); // Transferable
+    }
+    pendingQueue = [];
+    return;
+  }
+
+  if (data.status === 'progress') {
+    updateBanner(data); // D-07
+    return;
+  }
+
+  if (data.status === 'initiate' || data.status === 'done') {
+    return; // progress_callback noise — no UI update needed
+  }
+
+  if (data.status === 'result' || data.status === 'error') {
+    transcribeDone++;
+    updateRowInPlace(data);                              // D-04 / D-06: in-place fade-in update
+    updateSummaryLine(transcribeDone, transcribeTotal);  // D-08 / D-09
+    if (transcribeDone === transcribeTotal) {
+      enableCopyDownload(); // D-05: enable after all done
+    }
+  }
+}
+
+/**
+ * Dispatch transcription jobs to the Worker for all matched voice messages.
+ * Progressive: results screen is already visible; rows update in-place as Worker responds.
+ * @param {{ messages: Array }} result
+ */
+async function dispatchTranscription(result) {
+  const voiceMessages = result.messages.filter(function(m) {
+    return m.type === 'voice' && m.matched;
+  });
+
+  transcribeTotal = voiceMessages.length;
+  transcribeDone = 0;
+
+  if (transcribeTotal === 0) {
+    enableCopyDownload(); // nothing to transcribe — enable buttons immediately
+    return;
+  }
+
+  disableCopyDownload(); // D-05: disable until all done
+  updateSummaryLine(0, transcribeTotal); // D-08: set initial "Transcribing 0 of N..."
+
+  for (let i = 0; i < voiceMessages.length; i++) {
+    const msg = voiceMessages[i];
+    const audioData = await getAudioBytes(msg.audioEntry);
+    const job = {
+      type: 'transcribe',
+      audioData: audioData,
+      filename: msg.basename,
+      index: i + 1,
+      total: transcribeTotal,
+    };
+
+    if (isWorkerReady) {
+      worker.postMessage(job, [audioData.buffer]); // Transferable: avoids copy
+    } else {
+      pendingQueue.push(job); // D-02: buffer until 'ready' fires
+    }
+  }
+}
+
 // ── File processing ───────────────────────────────────────────────────────────
 
 /**
@@ -216,6 +417,7 @@ async function processFile(file) {
   } else {
     renderChatLog(result);
     showScreen('results');
+    await dispatchTranscription(result); // Phase 2: dispatch Worker jobs for matched voice messages
   }
 }
 
@@ -246,6 +448,7 @@ async function processFolder(fileList) {
   } else {
     renderChatLog(result);
     showScreen('results');
+    await dispatchTranscription(result); // Phase 2: dispatch Worker jobs for matched voice messages
   }
 }
 
@@ -289,6 +492,14 @@ export function init() {
   screens['results']       = document.getElementById('screen-results');
   screens['without-media'] = document.getElementById('screen-without-media');
 
+  // Phase 2: construct singleton Worker eagerly on init (D-01)
+  // type: 'module' required — worker.js uses ES module import syntax (RESEARCH.md Pattern 4)
+  worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
+  worker.addEventListener('message', onWorkerMessage);
+
+  // Phase 2: resolve DOM refs used by helper functions
+  modelBanner = document.getElementById('model-banner');
+
   const dropZone       = document.getElementById('drop-zone');
   const btnBrowse      = document.getElementById('btn-browse');
   const fileInput      = document.getElementById('file-input');
@@ -298,8 +509,9 @@ export function init() {
   const btnBrowseTxt   = document.getElementById('btn-browse-txt');
   const btnTryAgainWm  = document.getElementById('btn-try-again-wm');
   const btnTryAnother  = document.getElementById('btn-try-another');
-  const btnCopy        = document.getElementById('btn-copy');
-  const btnDownload    = document.getElementById('btn-download');
+  // Phase 2: assigned to module-level variables so disableCopyDownload/enableCopyDownload can access them
+  btnCopy        = document.getElementById('btn-copy');
+  btnDownload    = document.getElementById('btn-download');
 
   // ── Drag and Drop ──────────────────────────────────────────────────────────
 
@@ -392,6 +604,10 @@ export function init() {
       if (log) log.textContent = '';
       const summaryEl = document.getElementById('summary-line');
       if (summaryEl) summaryEl.textContent = '';
+      // Phase 2: reset transcription state for next file (Pitfall 6: do NOT reset isWorkerReady)
+      transcribeTotal = 0;
+      transcribeDone = 0;
+      pendingQueue = [];
       showScreen('upload');
     });
   }

@@ -33,6 +33,9 @@
     <input type="file" id="txt-input" accept=".txt" style="display:none">
     <button type="button" id="btn-browse-txt">Load .txt chat log</button>
     <p class="fine-print">Parse-only: voice positions identified, no audio transcription</p>
+
+    <!-- Model download progress banner; shown/hidden by Worker progress_callback messages (D-07) -->
+    <p id="model-banner"></p>
   </main>
 
   <!-- Screen 2: Processing -->
