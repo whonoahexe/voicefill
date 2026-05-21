@@ -321,7 +321,7 @@ function updateBanner(progressData) {
   if (pct != null && pct > modelLoadMaxPct) modelLoadMaxPct = pct;
   modelBanner.style.display = 'block';
   modelBanner.textContent = modelLoadMaxPct > 0
-    ? 'Loading model... ' + modelLoadMaxPct + '% (40MB, downloads once)'
+    ? 'Loading model... ' + modelLoadMaxPct + '% (~290MB, downloads once)'
     : 'Loading model...'; // textContent — T-02-02
 }
 

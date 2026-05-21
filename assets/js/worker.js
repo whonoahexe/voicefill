@@ -28,10 +28,10 @@ class WhisperSingleton {
     if (this.instance === null) {
       this.instance = pipeline(
         'automatic-speech-recognition',
-        'Xenova/whisper-tiny.en',
+        'Xenova/whisper-base.en',
         { dtype: 'fp32', progress_callback }
-        // fp32: avoids MatMulNBits operator in quantized files, incompatible
-        // with ORT WASM in @4.2.0 (latest). ~160MB vs ~40MB but reliable.
+        // fp32: avoids MatMulNBits incompatibility with ORT WASM in @4.2.0.
+        // whisper-base.en fp32 ~290MB; better accuracy than tiny at reasonable cost.
       );
     }
     return this.instance; // returns the Promise — callers await it
@@ -62,7 +62,11 @@ self.addEventListener('message', async (e) => {
     const transcriber = await WhisperSingleton.getInstance();
 
     // Pass decoded PCM directly — avoids any AudioContext requirement
-    const result = await transcriber(pcmData, { sampling_rate: 16000 });
+    const result = await transcriber(pcmData, {
+      sampling_rate: 16000,
+      chunk_length_s: 30,   // required for audio >30s — splits into overlapping chunks
+      stride_length_s: 5,   // 5s overlap each side for smooth chunk boundaries
+    });
 
     // Text-based silence gate: empty Whisper output = no speech detected (TRANS-05)
     const text = result.text.trim();
