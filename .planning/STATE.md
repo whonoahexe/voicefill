@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-05-21)
 ## Current Position
 
 Phase: 1 of 3 (Parse Pipeline)
-Plan: 0 of 3 in current phase
-Status: Ready to execute
-Last activity: 2026-05-21 — Phase 1 planned (3 plans, 3 waves)
+Plan: 1 of 3 in current phase
+Status: In progress
+Last activity: 2026-05-21 — Plan 01-01 (Walking Skeleton) complete
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█░░░░░░░░░] 11%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0
-- Average duration: —
-- Total execution time: —
+- Total plans completed: 1
+- Average duration: 3m
+- Total execution time: 3m
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 1: Parse Pipeline | 1 | 3m | 3m |
 
 **Recent Trend:**
-- Last 5 plans: —
-- Trend: —
+- Last 5 plans: 01-01 (3m)
+- Trend: baseline
 
 *Updated after each plan completion*
 
@@ -46,6 +46,9 @@ Recent decisions affecting current work:
 - Phase 1: WhatsApp "with media" export required in v1; "without media" shows a friendly re-export explanation
 - Phase 1: Parser must handle both Android (`PTT-*.opus`) and iOS (`00000023-AUDIO-*.opus`) filename patterns from day one
 - Phase 2: Whisper Worker uses `onnx-community/whisper-tiny.en` at `dtype: 'q8'` (~40MB); sequential queue, not parallel
+- 01-01: JSZip loaded as classic script before ES module entry point — UMD build registers window.JSZip; load order is critical
+- 01-01: worker.js never constructed in Phase 1 — stub defines Phase 2 postMessage interface only
+- 01-01: innerHTML banned for all user-supplied content — textContent enforced throughout parser.js and ui.js
 
 ### Pending Todos
 
@@ -69,5 +72,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-21
-Stopped at: Phase 1 planned — ready to execute
-Resume file: .planning/phases/01-parse-pipeline/01-01-PLAN.md
+Stopped at: Plan 01-01 complete — Walking Skeleton delivered; ready to execute 01-02
+Resume file: .planning/phases/01-parse-pipeline/01-02-PLAN.md
