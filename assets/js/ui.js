@@ -331,9 +331,10 @@ function updateBanner(progressData) {
   const loadedBytes = allFiles.reduce((s, f) => s + f.loaded, 0);
   const pct = totalBytes > 0 ? Math.round((loadedBytes / totalBytes) * 100) : null;
 
+  const totalMB = totalBytes > 0 ? Math.round(totalBytes / 1024 / 1024) : null;
   modelBanner.style.display = 'block';
-  modelBanner.textContent = pct != null
-    ? 'Loading model... ' + pct + '% (~150MB, downloads once)'
+  modelBanner.textContent = pct != null && totalMB != null
+    ? 'Loading model... ' + pct + '% (~' + totalMB + 'MB, downloads once)'
     : 'Loading model... (downloads once)';
 }
 

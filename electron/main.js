@@ -19,6 +19,9 @@ function createWindow() {
   win.loadFile(path.join(__dirname, '..', 'index.html'));
 }
 
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
+app.commandLine.appendSwitch('enable-features', 'Vulkan');
+
 app.whenReady().then(() => {
   createWindow();
   // macOS: re-create window on dock icon click if none are open

@@ -21,19 +21,31 @@ env.allowLocalModels = false;
 // ── Part 2: WhisperSingleton ──────────────────────────────────────────────────
 // Stores the pipeline Promise (not the resolved value) — awaiting the same Promise twice is safe
 // and returns the same resolved pipeline, preventing duplicate model downloads.
+//
+// Device selection:
+//   WebGPU available → whisper-large-v3-turbo, device:'webgpu', dtype:'q4f16' (~560MB, GPU-accelerated)
+//   WebGPU absent    → whisper-tiny.en, device:'wasm', dtype:'fp32' (~150MB, CPU fallback)
+//   fp32 on WASM avoids the ORT TransposeDQWeightsForMatMulNBits bug present in @4.2.0 for quantized WASM models.
+const WEBGPU_AVAILABLE = typeof navigator !== 'undefined' && 'gpu' in navigator;
+
 class WhisperSingleton {
   static instance = null;
 
   static async getInstance(progress_callback) {
     if (this.instance === null) {
-      this.instance = pipeline(
-        'automatic-speech-recognition',
-        'Xenova/whisper-tiny.en',
-        { dtype: 'fp32', progress_callback }
-        // ORT WASM in @4.2.0 runs TransposeDQWeightsForMatMulNBits on ALL quantized models (q8/int8/q4)
-        // regardless of origin — fp32 is the only dtype that bypasses that pass entirely.
-        // whisper-tiny.en fp32 ~150MB vs whisper-base.en fp32 ~290MB — still ~2x smaller and faster.
-      );
+      if (WEBGPU_AVAILABLE) {
+        this.instance = pipeline(
+          'automatic-speech-recognition',
+          'onnx-community/whisper-large-v3-turbo',
+          { device: 'webgpu', dtype: 'q4f16', progress_callback }
+        );
+      } else {
+        this.instance = pipeline(
+          'automatic-speech-recognition',
+          'Xenova/whisper-tiny.en',
+          { dtype: 'fp32', progress_callback }
+        );
+      }
     }
     return this.instance;
   }
