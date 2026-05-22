@@ -1,7 +1,7 @@
 // assets/js/ui.js — Screen state machine + event binding + full styled results render
 
 import { parseZip, parseFolder, parseTxt, parseInstagram } from './parser.js';
-import { getCachedTranscript, setCachedTranscript } from './cache.js';
+import { getCachedTranscript, setCachedTranscript, deriveChatKey } from './cache.js';
 
 // ── Screen references ─────────────────────────────────────────────────────────
 const screens = {
@@ -22,6 +22,7 @@ let isWorkerReady = false;   // true after first 'ready' message (Pitfall 6)
 let pendingQueue = [];       // jobs buffered while model is still loading (D-02)
 let transcribeTotal = 0;     // voice messages to process in this session
 let transcribeDone = 0;      // completed count (result or error)
+let currentChatKey = 'unknown'; // participant-derived cache namespace for the active chat
 
 // Phase 2: DOM refs promoted to module scope (resolved at init() time)
 let btnCopy = null;
@@ -379,7 +380,7 @@ function onWorkerMessage(e) {
       return;
     }
     if (data.status === 'result') {
-      setCachedTranscript(data.filename, data.text); // persist for future uploads
+      setCachedTranscript(currentChatKey, data.filename, data.text); // persist for future uploads
     }
     transcribeDone++;
     updateRowInPlace(data);                              // D-04 / D-06: in-place fade-in update
@@ -405,10 +406,13 @@ async function dispatchTranscription(result) {
     return;
   }
 
+  // Derive chat identity from participants so caches for different chats never collide.
+  currentChatKey = deriveChatKey(result.messages);
+
   // Resolve cached transcripts immediately; collect only uncached messages for the worker.
   const uncached = [];
   for (const msg of voiceMessages) {
-    const cached = getCachedTranscript(msg.basename);
+    const cached = getCachedTranscript(currentChatKey, msg.basename);
     if (cached !== null) {
       updateRowInPlace({ status: 'result', filename: msg.basename, text: cached });
     } else {
