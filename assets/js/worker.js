@@ -28,13 +28,14 @@ class WhisperSingleton {
     if (this.instance === null) {
       this.instance = pipeline(
         'automatic-speech-recognition',
-        'Xenova/whisper-base.en',
+        'Xenova/whisper-tiny.en',
         { dtype: 'fp32', progress_callback }
-        // fp32: avoids MatMulNBits incompatibility with ORT WASM in @4.2.0.
-        // whisper-base.en fp32 ~290MB; better accuracy than tiny at reasonable cost.
+        // ORT WASM in @4.2.0 runs TransposeDQWeightsForMatMulNBits on ALL quantized models (q8/int8/q4)
+        // regardless of origin — fp32 is the only dtype that bypasses that pass entirely.
+        // whisper-tiny.en fp32 ~150MB vs whisper-base.en fp32 ~290MB — still ~2x smaller and faster.
       );
     }
-    return this.instance; // returns the Promise — callers await it
+    return this.instance;
   }
 }
 
@@ -61,16 +62,22 @@ self.addEventListener('message', async (e) => {
   try {
     const transcriber = await WhisperSingleton.getInstance();
 
-    // Pass decoded PCM directly — avoids any AudioContext requirement
     const result = await transcriber(pcmData, {
       sampling_rate: 16000,
-      chunk_length_s: 30,   // required for audio >30s — splits into overlapping chunks
-      stride_length_s: 5,   // 5s overlap each side for smooth chunk boundaries
+      chunk_length_s: 30,
+      stride_length_s: 5,
+      return_timestamps: true,
     });
 
-    // Text-based silence gate: empty Whisper output = no speech detected (TRANS-05)
+    // Silence gate: TRANS-05 — reject silence and common Whisper hallucinations
+    const chunks = result.chunks || [];
+    const maxNoSpeech = chunks.length > 0
+      ? Math.max(...chunks.map(c => c.no_speech_prob ?? 0))
+      : 0;
+    const HALLUCINATIONS = /^\[BLANK_AUDIO\]$|^\[Audio unreadable\]$|^♪\s*$|^you\.?$|^Thank you\.?$/i;
     const text = result.text.trim();
-    const output = text === '' ? '[No speech detected]' : text;
+    const isSilent = maxNoSpeech > 0.6 || text === '' || HALLUCINATIONS.test(text);
+    const output = isSilent ? '[No speech detected]' : text;
 
     self.postMessage({ status: 'result', filename, text: output, index, total });
 

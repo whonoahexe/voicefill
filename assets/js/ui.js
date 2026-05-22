@@ -26,7 +26,7 @@ let transcribeDone = 0;      // completed count (result or error)
 let btnCopy = null;
 let btnDownload = null;
 let modelBanner = null;
-let modelLoadMaxPct = 0; // running max for banner — progress fires per-file, not overall
+const modelFileProgress = {}; // file → { loaded, total } — for aggregate download %
 
 /**
  * Show one screen; hide all others.
@@ -312,17 +312,29 @@ function enableCopyDownload() {
 
 /**
  * Show or update the model download progress banner (D-07).
- * Format: "Loading model... 62% (40MB, downloads once)"
- * @param {{ progress?: number }} progressData
+ * Tracks per-file loaded/total bytes so multi-file models show a true aggregate %.
+ * @param {{ status: string, file?: string, loaded?: number, total?: number }} progressData
  */
 function updateBanner(progressData) {
   if (!modelBanner) return;
-  const pct = progressData.progress != null ? Math.round(progressData.progress) : null;
-  if (pct != null && pct > modelLoadMaxPct) modelLoadMaxPct = pct;
+  const { file, loaded, total, status } = progressData;
+
+  if (file) {
+    if (!modelFileProgress[file]) modelFileProgress[file] = { loaded: 0, total: 0 };
+    if (loaded != null) modelFileProgress[file].loaded = loaded;
+    if (total != null && total > 0) modelFileProgress[file].total = total;
+    if (status === 'done') modelFileProgress[file].loaded = modelFileProgress[file].total;
+  }
+
+  const allFiles = Object.values(modelFileProgress);
+  const totalBytes = allFiles.reduce((s, f) => s + f.total, 0);
+  const loadedBytes = allFiles.reduce((s, f) => s + f.loaded, 0);
+  const pct = totalBytes > 0 ? Math.round((loadedBytes / totalBytes) * 100) : null;
+
   modelBanner.style.display = 'block';
-  modelBanner.textContent = modelLoadMaxPct > 0
-    ? 'Loading model... ' + modelLoadMaxPct + '% (~290MB, downloads once)'
-    : 'Loading model...'; // textContent — T-02-02
+  modelBanner.textContent = pct != null
+    ? 'Loading model... ' + pct + '% (~150MB, downloads once)'
+    : 'Loading model... (downloads once)';
 }
 
 /**
@@ -352,13 +364,9 @@ function onWorkerMessage(e) {
     return;
   }
 
-  if (data.status === 'progress') {
-    updateBanner(data); // D-07
+  if (data.status === 'initiate' || data.status === 'progress' || data.status === 'done') {
+    updateBanner(data); // D-07 — all three events carry file/loaded/total needed for aggregate %
     return;
-  }
-
-  if (data.status === 'initiate' || data.status === 'done') {
-    return; // progress_callback noise — no UI update needed
   }
 
   if (data.status === 'result' || data.status === 'error') {
@@ -392,19 +400,17 @@ async function dispatchTranscription(result) {
   disableCopyDownload(); // D-05: disable until all done
   updateSummaryLine(0, transcribeTotal); // D-08: set initial "Transcribing 0 of N..."
 
-  for (let i = 0; i < voiceMessages.length; i++) {
-    const msg = voiceMessages[i];
-
+  // Decode all audio concurrently so decode of message N+1 overlaps with Worker inference on N.
+  await Promise.all(voiceMessages.map(async (msg, i) => {
     let pcmData;
     try {
-      pcmData = await decodeAudio(msg.audioEntry); // decode on main thread (OfflineAudioContext unavailable in Workers)
+      pcmData = await decodeAudio(msg.audioEntry);
     } catch (_err) {
-      // Decode failed — treat as ERR-02 directly without going to Worker
       transcribeDone++;
       updateRowInPlace({ status: 'error', filename: msg.basename });
       updateSummaryLine(transcribeDone, transcribeTotal);
       if (transcribeDone === transcribeTotal) enableCopyDownload();
-      continue;
+      return;
     }
 
     const job = {
@@ -416,11 +422,11 @@ async function dispatchTranscription(result) {
     };
 
     if (isWorkerReady) {
-      worker.postMessage(job, [pcmData.buffer]); // Transferable: avoids copy
+      worker.postMessage(job, [pcmData.buffer]);
     } else {
-      pendingQueue.push(job); // D-02: buffer until 'ready' fires
+      pendingQueue.push(job);
     }
-  }
+  }));
 }
 
 // ── File processing ───────────────────────────────────────────────────────────
