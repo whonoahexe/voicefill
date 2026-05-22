@@ -1,6 +1,7 @@
 // assets/js/ui.js — Screen state machine + event binding + full styled results render
 
 import { parseZip, parseFolder, parseTxt, parseInstagram } from './parser.js';
+import { getCachedTranscript, setCachedTranscript } from './cache.js';
 
 // ── Screen references ─────────────────────────────────────────────────────────
 const screens = {
@@ -377,6 +378,9 @@ function onWorkerMessage(e) {
       if (banner) banner.textContent = 'Whisper failed to initialise. Reload the app and try again.';
       return;
     }
+    if (data.status === 'result') {
+      setCachedTranscript(data.filename, data.text); // persist for future uploads
+    }
     transcribeDone++;
     updateRowInPlace(data);                              // D-04 / D-06: in-place fade-in update
     updateSummaryLine(transcribeDone, transcribeTotal);  // D-08 / D-09
@@ -396,19 +400,36 @@ async function dispatchTranscription(result) {
     return m.type === 'voice' && m.matched;
   });
 
-  transcribeTotal = voiceMessages.length;
-  transcribeDone = 0;
-
-  if (transcribeTotal === 0) {
+  if (voiceMessages.length === 0) {
     enableCopyDownload(); // nothing to transcribe — enable buttons immediately
     return;
   }
 
-  disableCopyDownload(); // D-05: disable until all done
-  updateSummaryLine(0, transcribeTotal); // D-08: set initial "Transcribing 0 of N..."
+  // Resolve cached transcripts immediately; collect only uncached messages for the worker.
+  const uncached = [];
+  for (const msg of voiceMessages) {
+    const cached = getCachedTranscript(msg.basename);
+    if (cached !== null) {
+      updateRowInPlace({ status: 'result', filename: msg.basename, text: cached });
+    } else {
+      uncached.push(msg);
+    }
+  }
 
-  // Decode all audio concurrently so decode of message N+1 overlaps with Worker inference on N.
-  await Promise.all(voiceMessages.map(async (msg, i) => {
+  transcribeTotal = voiceMessages.length;
+  transcribeDone = voiceMessages.length - uncached.length; // cached ones count as already done
+
+  if (uncached.length === 0) {
+    updateSummaryLine(transcribeDone, transcribeTotal);
+    enableCopyDownload();
+    return;
+  }
+
+  disableCopyDownload(); // D-05: disable until all done
+  updateSummaryLine(transcribeDone, transcribeTotal); // D-08: show cached progress immediately
+
+  // Decode all uncached audio concurrently so decode of message N+1 overlaps with Worker inference on N.
+  await Promise.all(uncached.map(async (msg, i) => {
     let pcmData;
     try {
       pcmData = await decodeAudio(msg.audioEntry);
@@ -425,7 +446,7 @@ async function dispatchTranscription(result) {
       pcmData: pcmData,
       filename: msg.basename,
       index: i + 1,
-      total: transcribeTotal,
+      total: uncached.length,
     };
 
     if (isWorkerReady) {

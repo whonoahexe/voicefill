@@ -11,7 +11,7 @@ See: .planning/PROJECT.md (updated 2026-05-22)
 
 Milestone: v1.0 MVP — SHIPPED 2026-05-22
 Status: All phases complete
-Last activity: 2026-05-22 — v1.0 milestone archived
+Last activity: 2026-05-22 — Completed quick task 260522-qt1: Persist transcription results; skip re-transcription of cached voice messages on re-upload
 
 Progress: [██████████] 100% — v1.0 complete
 
@@ -39,6 +39,12 @@ Progress: [██████████] 100% — v1.0 complete
 | v2 | Language auto-detect | Planned | Init |
 | v2 | Dark mode | Planned | Init |
 | v2 | Safari Ogg/Opus decoding | Open question | Phase 1 |
+
+### Quick Tasks Completed
+
+| # | Description | Date | Directory |
+|---|-------------|------|-----------|
+| 260522-qt1 | Persist transcription results; skip re-transcription of cached voice messages on re-upload | 2026-05-22 | [260522-qt1-transcript-cache](.planning/quick/260522-qt1-transcript-cache/) |
 
 ## Session Continuity
 
