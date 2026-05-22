@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Parse Pipeline** - End-to-end chat reconstruction with placeholder transcripts (no ML) — completed 2026-05-21
 - [ ] **Phase 2: Whisper Worker** - Real in-browser transcription via transformers.js Web Worker
-- [ ] **Phase 3: Package & Ship** - Electron packaging, offline guarantee, and Instagram support
+- [x] **Phase 3: Package & Ship** - Electron packaging, offline guarantee, and Instagram support — completed 2026-05-22
 
 ## Phase Details
 
@@ -90,10 +90,10 @@ Plans:
 
 Plans:
 **Wave 1:**
-- [ ] 03-01-PLAN.md — Electron shell (electron/main.js + package.json), CSP meta tag for WASM in sandboxed renderer, npm install, portable exe build + smoke-test checkpoint (DIST-01, DIST-02)
+- [x] 03-01-PLAN.md — Electron shell (electron/main.js + package.json), CSP meta tag for WASM in sandboxed renderer, npm install, portable exe build + smoke-test checkpoint (DIST-01, DIST-02) — completed 2026-05-22
 
 **Wave 2 *(blocked on Wave 1 completion)*:**
-- [ ] 03-02-PLAN.md — Instagram ZIP parser (parseInstagram()), Latin-1 encoding fix, timestamp sort, UI routing for Instagram ZIPs and standalone JSON drops (PARSE-05)
+- [x] 03-02-PLAN.md — Instagram ZIP parser (parseInstagram()), Latin-1 encoding fix, timestamp sort, UI routing for Instagram ZIPs and standalone JSON drops (PARSE-05) — completed 2026-05-22
 
 **Cross-cutting constraints:**
 - CSP meta tag required in index.html before packaging — silent WASM failure in packaged exe if missed
@@ -110,4 +110,4 @@ Phases execute in numeric order: 1 → 2 → 3
 |-------|----------------|--------|-----------|
 | 1. Parse Pipeline | 3/3 | Complete | 2026-05-21 |
 | 2. Whisper Worker | 0/2 | Not started | - |
-| 3. Package & Ship | 0/2 | Not started | - |
+| 3. Package & Ship | 2/2 | Complete | 2026-05-22 |

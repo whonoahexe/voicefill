@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-05-21)
 
 **Core value:** A voice-message-inclusive WhatsApp chat log, fully transcribed offline, that gives Claude the complete conversation context
-**Current focus:** Phase 1 — Parse Pipeline
+**Current focus:** Phase 3 — Package & Ship — Complete
 
 ## Current Position
 
 Phase: 3 of 3 (Package & Ship)
-Plan: 0 of 2 in current phase
-Status: Phase 3 planned — ready to execute
-Last activity: 2026-05-21 — Phase 3 PLAN.md files created (2 plans, 2 waves)
+Plan: 2 of 2 in current phase
+Status: All phases complete — v1.0 shipped
+Last activity: 2026-05-22 — Phase 3 complete (DIST-01, DIST-02, PARSE-05 delivered)
 
-Progress: [██████░░░░] 66%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -80,5 +80,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-21
-Stopped at: Phase 2 planned — 2 plans ready for execution
-Resume file: .planning/phases/03-package-ship/03-01-PLAN.md
+Stopped at: Phase 3 complete — all v1 features delivered
+Resume file: N/A — all phases complete
