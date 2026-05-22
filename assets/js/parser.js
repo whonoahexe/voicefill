@@ -410,7 +410,12 @@ export async function parseInstagram(file) {
   }
 
   // Load ZIP — JSZip UMD build registered window.JSZip by the classic <script> tag
-  const zip = await JSZip.loadAsync(file);
+  let zip;
+  try {
+    zip = await JSZip.loadAsync(file);
+  } catch (err) {
+    throw new Error('Invalid or corrupt ZIP file');
+  }
 
   const messageEntries = [];       // { path, entry } objects for message_N.json files
   const audioFiles = new Map();    // basename -> ZipObject (bytes read lazily)

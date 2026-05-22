@@ -371,6 +371,12 @@ function onWorkerMessage(e) {
   }
 
   if (data.status === 'result' || data.status === 'error') {
+    if (data.filename === null || data.filename === undefined) {
+      // Worker pipeline init failure — not a per-file error; show banner, don't touch counters
+      const banner = document.getElementById('model-banner');
+      if (banner) banner.textContent = 'Whisper failed to initialise. Reload the app and try again.';
+      return;
+    }
     transcribeDone++;
     updateRowInPlace(data);                              // D-04 / D-06: in-place fade-in update
     updateSummaryLine(transcribeDone, transcribeTotal);  // D-08 / D-09
@@ -780,7 +786,6 @@ export function init() {
       transcribeTotal = 0;
       transcribeDone = 0;
       pendingQueue = [];
-      modelLoadMaxPct = 0;
       showScreen('upload');
     });
   }
