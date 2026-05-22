@@ -1,6 +1,6 @@
 // assets/js/ui.js — Screen state machine + event binding + full styled results render
 
-import { parseZip, parseFolder, parseTxt } from './parser.js';
+import { parseZip, parseFolder, parseTxt, parseInstagram } from './parser.js';
 
 // ── Screen references ─────────────────────────────────────────────────────────
 const screens = {
@@ -524,6 +524,129 @@ async function processTxt(file) {
   showScreen('results');
 }
 
+// ── Instagram helpers ─────────────────────────────────────────────────────────
+
+/**
+ * Detect if a parsed JSON object matches the Instagram message export format (D-07).
+ * Checks for the three characteristic root-level fields: participants array,
+ * messages array, and thread_path string.
+ * @param {any} parsed — result of JSON.parse on a dropped .json file
+ * @returns {boolean}
+ */
+function isInstagramJSON(parsed) {
+  return (
+    typeof parsed === 'object' &&
+    parsed !== null &&
+    Array.isArray(parsed.participants) &&
+    Array.isArray(parsed.messages) &&
+    typeof parsed.thread_path === 'string'
+  );
+}
+
+/**
+ * Route a dropped or picked ZIP file: try Instagram parser first if filename
+ * contains 'instagram'; otherwise try WhatsApp parseZip(). Enforces 300ms minimum
+ * processing screen display and routes to the correct results screen.
+ * @param {File} file
+ */
+async function processZipFile(file) {
+  showScreen('processing');
+  const start = Date.now();
+
+  let result;
+  try {
+    if (file.name.toLowerCase().includes('instagram')) {
+      // Instagram-named ZIP: try parseInstagram first; fall back to parseZip only
+      // if parseInstagram throws 'Unrecognized format' (wrong ZIP despite filename)
+      try {
+        result = await parseInstagram(file);
+      } catch (instagramErr) {
+        if (instagramErr.message && instagramErr.message.startsWith('Unrecognized format')) {
+          result = await parseZip(file);
+        } else {
+          throw instagramErr; // re-throw validation errors (wrong extension, too large, etc.)
+        }
+      }
+    } else {
+      // Non-instagram filename: go straight to parseZip
+      result = await parseZip(file);
+    }
+  } catch (err) {
+    console.error('[VoiceFill] processZipFile failed:', err);
+    showScreen('upload');
+    showParseError(err.message);
+    return;
+  }
+
+  // Enforce 300ms minimum on processing screen to prevent jarring flash
+  const elapsed = Date.now() - start;
+  if (elapsed < 300) {
+    await new Promise(r => setTimeout(r, 300 - elapsed));
+  }
+
+  if (result.mode === 'without-media') {
+    showScreen('without-media');
+  } else {
+    renderChatLog(result);
+    showScreen('results');
+    await dispatchTranscription(result);
+  }
+}
+
+/**
+ * Handle a dropped standalone Instagram .json file (D-07 text-only mode).
+ * Maps messages to text-only chat log — no audio files, no dispatchTranscription.
+ * If the JSON is not a recognized Instagram format, shows a parse error.
+ * @param {File} file
+ */
+async function processInstagramJson(file) {
+  let parsed;
+  try {
+    const text = await file.text();
+    parsed = JSON.parse(text);
+  } catch (_e) {
+    showScreen('upload');
+    showParseError('Unrecognized file — drop a WhatsApp or Instagram export ZIP');
+    return;
+  }
+
+  if (!isInstagramJSON(parsed)) {
+    showScreen('upload');
+    showParseError('Unrecognized file — drop a WhatsApp or Instagram export ZIP');
+    return;
+  }
+
+  // Map Instagram messages to the shared MessageObject shape (text only — no audio).
+  // Note: fixInstagramEncoding is in parser.js (not exported), so replicate the pattern
+  // inline for the JSON-only path. This avoids importing a non-exported helper.
+  const fixEncoding = (str) => {
+    if (!str) return str || '';
+    try { return decodeURIComponent(escape(str)); } catch { return str; }
+  };
+
+  // Sort oldest-first on raw array before mapping (Pitfall 6 guard — Instagram exports newest-first)
+  const sortedRaw = [...parsed.messages].sort((a, b) => (a.timestamp_ms || 0) - (b.timestamp_ms || 0));
+  const messages = sortedRaw.map(msg => ({
+    type: 'text',
+    timestamp: new Date(msg.timestamp_ms || 0).toLocaleString(),
+    sender: fixEncoding(msg.sender_name || ''),
+    content: fixEncoding(msg.content || ''),
+  }));
+
+  const result = {
+    mode: 'with-media',
+    exportMode: 'instagram',
+    messages,
+    audioFiles: new Map(),
+    plainText: messages.map(m => `${m.timestamp} - ${m.sender}: ${m.content}`).join('\n'),
+    stats: { voiceTotal: 0, voiceMatched: 0 },
+  };
+
+  renderChatLog(result);
+  showScreen('results');
+  // Do NOT call dispatchTranscription — no audio files in text-only Instagram JSON mode
+}
+
 // ── Public init ───────────────────────────────────────────────────────────────
 
 /**
@@ -582,9 +705,14 @@ export function init() {
     dropZone.classList.remove('drag-over');
     const file = e.dataTransfer.files[0];
     if (!file) return;
-    // Silently ignore non-ZIP drops — no error (per UI-SPEC Drag and Drop contract)
-    if (!file.name.toLowerCase().endsWith('.zip')) return;
-    processFile(file);
+    const nameLower = file.name.toLowerCase();
+    if (nameLower.endsWith('.zip')) {
+      processZipFile(file);
+    } else if (nameLower.endsWith('.json')) {
+      // D-07: standalone Instagram JSON drop (text-only, no audio)
+      processInstagramJson(file);
+    }
+    // Silently ignore all other file types (per UI-SPEC Drag and Drop contract)
   });
 
   // ── File Picker ────────────────────────────────────────────────────────────
@@ -597,7 +725,7 @@ export function init() {
     const file = e.target.files[0];
     if (!file) return;
     e.target.value = ''; // reset so same file can be re-selected
-    processFile(file);
+    processZipFile(file);
   });
 
   // ── Folder Picker (INPUT-03) ───────────────────────────────────────────────
