@@ -332,3 +332,194 @@ export async function parseTxt(file) {
 
   return { mode, messages, plainText, stats: { voiceTotal, voiceMatched } };
 }
+
+// ── parseInstagram ────────────────────────────────────────────────────────────
+
+/**
+ * Fix garbled Latin-1 encoded characters in Instagram JSON exports.
+ * Instagram's export pipeline applies Latin-1 encoding to what should be UTF-8 strings.
+ * This affects sender names and message content containing any non-ASCII character.
+ * @param {string} str — potentially garbled string from Instagram JSON
+ * @returns {string} — correctly decoded UTF-8 string (or original if fix fails)
+ */
+function fixInstagramEncoding(str) {
+  if (!str) return str;
+  try { return decodeURIComponent(escape(str)); } catch { return str; }
+}
+
+/**
+ * Determine if an Instagram message object is a voice/audio message.
+ * Instagram voice messages appear in two confirmed formats:
+ * - audio_files array (current format): contains .m4a file reference
+ * - voice_media string (older format): contains a CDN URL
+ * @param {Object} msg — Instagram message object from JSON
+ * @returns {boolean}
+ */
+function isVoiceMessage(msg) {
+  return (Array.isArray(msg.audio_files) && msg.audio_files.length > 0) ||
+         (typeof msg.voice_media === 'string' && msg.voice_media !== '');
+}
+
+/**
+ * Extract the audio file basename from an Instagram voice message.
+ * The uri field is a full relative path inside the ZIP — only the last segment is used
+ * as the Map key (Pitfall 5: uri is a full path, not a basename).
+ * @param {Object} msg — Instagram message object from JSON
+ * @returns {string|null} — basename e.g. 'audioclip_12345.m4a', or null if not extractable
+ */
+function getInstagramAudioBasename(msg) {
+  if (Array.isArray(msg.audio_files) && msg.audio_files.length > 0) {
+    const uri = msg.audio_files[0].uri;
+    if (typeof uri === 'string' && uri.length > 0) {
+      return uri.split('/').pop(); // e.g. 'audioclip_12345.m4a' (Pitfall 5 guard)
+    }
+  }
+  return null;
+}
+
+/**
+ * Parse an Instagram JSON export ZIP into the shared message format.
+ * Instagram exports voice messages as .m4a (AAC in MPEG-4 container), decodable
+ * natively via AudioContext.decodeAudioData() in Chromium/Electron.
+ *
+ * PARSE-05 — Instagram JSON export parsing.
+ * Implements: oldest-first sort (Pitfall 6), Latin-1 encoding fix (Pitfall 4),
+ * audio basename extraction (Pitfall 5), 500MB size guard (T-03-07).
+ *
+ * @param {File} file — .zip File object from drag-drop or file picker
+ * @returns {Promise<{ mode: string, exportMode: string, messages: Array, audioFiles: Map, plainText: string, stats: { voiceTotal: number, voiceMatched: number } }>}
+ * @throws {Error} 'Instagram export must be a .zip file' — if file extension is not .zip
+ * @throws {Error} 'ZIP file exceeds 500MB limit' — if file is too large
+ * @throws {Error} 'No Instagram message file found in ZIP' — if no message_N.json found
+ * @throws {Error} 'Unrecognized format -- not an Instagram message export' — if JSON structure invalid
+ */
+export async function parseInstagram(file) {
+  // Validate file extension
+  if (!file.name.toLowerCase().endsWith('.zip')) {
+    throw new Error('Instagram export must be a .zip file');
+  }
+
+  // 500MB size guard (T-03-07: mirrors parseZip() guard)
+  if (file.size > 500 * 1024 * 1024) {
+    throw new Error('ZIP file exceeds 500MB limit');
+  }
+
+  // Guard: JSZip must be available as a global (loaded via classic <script> tag in index.html)
+  if (typeof JSZip === 'undefined') {
+    throw new Error('ZIP library failed to load — please reload the application');
+  }
+
+  // Load ZIP — JSZip UMD build registered window.JSZip by the classic <script> tag
+  const zip = await JSZip.loadAsync(file);
+
+  const messageEntries = [];       // { path, entry } objects for message_N.json files
+  const audioFiles = new Map();    // basename -> ZipObject (bytes read lazily)
+
+  // Iterate all entries; collect message JSON files and .m4a audio files
+  zip.forEach((relativePath, entry) => {
+    if (entry.dir) return;
+    const basename = relativePath.split('/').pop(); // Pitfall 5: strip path prefix
+
+    // Collect Instagram voice audio files (.m4a — AAC in MPEG-4 container)
+    if (basename.endsWith('.m4a')) {
+      audioFiles.set(basename, entry);
+    }
+
+    // Collect Instagram message JSON files (message_1.json, message_2.json, etc.)
+    if (/^message_\d+\.json$/.test(basename)) {
+      messageEntries.push({ path: relativePath, entry });
+    }
+  });
+
+  // Validate that at least one message JSON file was found
+  if (messageEntries.length === 0) {
+    throw new Error('No Instagram message file found in ZIP');
+  }
+
+  // Parse all message_N.json files and merge (handles long conversations split across files)
+  let allRawMessages = [];
+
+  for (const { entry } of messageEntries) {
+    let raw;
+    try {
+      raw = JSON.parse(await entry.async('string'));
+    } catch (_e) {
+      throw new Error('Unrecognized format -- not an Instagram message export');
+    }
+
+    // Format validation: must have participants + messages arrays
+    if (!Array.isArray(raw.participants) || !Array.isArray(raw.messages)) {
+      throw new Error('Unrecognized format -- not an Instagram message export');
+    }
+
+    allRawMessages = allRawMessages.concat(raw.messages);
+  }
+
+  // Sort ascending by timestamp_ms — Instagram exports newest-first (Pitfall 6 guard)
+  allRawMessages.sort((a, b) => (a.timestamp_ms || 0) - (b.timestamp_ms || 0));
+
+  // Map each Instagram message object to the shared MessageObject shape
+  const messages = allRawMessages.map(msg => {
+    const sender    = fixInstagramEncoding(msg.sender_name || '');
+    const content   = fixInstagramEncoding(msg.content || '');
+    const timestamp = new Date(msg.timestamp_ms || 0).toLocaleString();
+
+    if (!isVoiceMessage(msg)) {
+      // Text message
+      return { type: 'text', timestamp, sender, content };
+    }
+
+    // Voice message — determine match status
+    const basename = getInstagramAudioBasename(msg);
+
+    if (basename && audioFiles.has(basename)) {
+      // audio_files URI matched a .m4a entry in the ZIP
+      return {
+        type: 'voice',
+        timestamp,
+        sender,
+        content: '',
+        basename,
+        matched: true,
+        audioEntry: audioFiles.get(basename),
+      };
+    }
+
+    if (basename) {
+      // audio_files present but file not found in ZIP (missing from export)
+      return {
+        type: 'voice',
+        timestamp,
+        sender,
+        content: '',
+        basename,
+        matched: false,
+        annotation: '[Audio file missing]',
+      };
+    }
+
+    // voice_media is an https:// CDN URL — media has expired (older export format)
+    // T-03-08: voice_media URL produces static annotation; URL is never fetched or rendered as HTML
+    return {
+      type: 'voice',
+      timestamp,
+      sender,
+      content: '',
+      matched: false,
+      annotation: '[Instagram voice: media expired — download the export again]',
+    };
+  });
+
+  // Compute stats
+  const voiceTotal   = messages.filter(m => m.type === 'voice').length;
+  const voiceMatched = messages.filter(m => m.type === 'voice' && m.matched).length;
+
+  return {
+    mode: 'with-media',
+    exportMode: 'instagram',
+    messages,
+    audioFiles,
+    plainText: assemblePlainText(messages),
+    stats: { voiceTotal, voiceMatched },
+  };
+}
