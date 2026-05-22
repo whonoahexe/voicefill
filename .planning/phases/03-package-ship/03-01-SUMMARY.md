@@ -2,7 +2,7 @@
 phase: "03-package-ship"
 plan: "01"
 subsystem: "electron-shell"
-status: "partial — checkpoint:human-verify at Task 3"
+status: "complete"
 tags: ["electron", "packaging", "csp", "wasm", "electron-builder"]
 dependency_graph:
   requires: []
@@ -28,7 +28,7 @@ decisions:
 metrics:
   duration: "2m"
   completed_date: "2026-05-21"
-  tasks_completed: 2
+  tasks_completed: 3
   tasks_total: 3
   files_created: 4
   files_modified: 1
@@ -38,9 +38,9 @@ metrics:
 
 **One-liner:** Electron shell with BrowserWindow.loadFile, nodeIntegration:false, contextIsolation:true, and CSP meta tag enabling WASM unsafe-eval for packaged-app transcription.
 
-## Status: Partial — Awaiting Task 3 Human Checkpoint
+## Status: Complete
 
-Tasks 1 and 2 are complete and committed. Task 3 (`Build and smoke-test the packaged exe`) is a `checkpoint:human-verify` gate that requires the user to run `npm start`, `npm run build`, and manually test the packaged exe.
+All 3 tasks completed. Human verified 2026-05-22: `npm start` works, `dist/VoiceFill 1.0.0.exe` builds and runs without terminal, WhatsApp ZIP transcribes in the packaged exe.
 
 ## Tasks Completed
 
@@ -48,15 +48,7 @@ Tasks 1 and 2 are complete and committed. Task 3 (`Build and smoke-test the pack
 |------|------|--------|-------|
 | 1 | Create electron/main.js and package.json | e58b058 | electron/main.js, package.json, package-lock.json, .gitignore |
 | 2 | Add CSP meta tag to index.html | 97d5baa | index.html |
-
-## Task 3 (Awaiting Human)
-
-**Task 3:** Build and smoke-test the packaged exe
-**Status:** blocked at checkpoint:human-verify
-**What user needs to do:**
-1. Run `npm start` — verify VoiceFill window opens and a WhatsApp ZIP transcribes correctly
-2. Run `npm run build` — verify dist/VoiceFill*.exe is created
-3. Double-click the .exe — verify it works without terminal, transcribes a WhatsApp ZIP
+| 3 | Build and smoke-test (human verify) | — | dist/VoiceFill 1.0.0.exe |
 
 ## What Was Built
 
