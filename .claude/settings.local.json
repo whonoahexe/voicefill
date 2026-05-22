@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx *)",
+      "Bash(node *)",
+      "Bash(git *)",
+      "Bash(npm *)",
+      "Bash(cd *)",
+      "Bash(find *)",
+      "Bash(grep *)",
+      "PowerShell",
+      "WebFetch",
+      "WebSearch",
+      "Read",
+      "Write",
+      "Skill(gsd-code-review)",
+      "Skill(gsd-plan-phase)",
+      "Skill(gsd-execute-phase)",
+      "Read(//c/Users/whono/.claude/get-shit-done/**)",
+      "Read(//c/Users/whono/.claude/get-shit-done/workflows/**)",
+      "Skill(gsd-complete-milestone)",
+      "Skill(gsd-new-milestone)",
+      "Skill(gsd-progress)",
+      "Skill(gsd-discuss-phase)",
+      "Bash(python3 -c ' *)",
+      "Bash(python3 *)",
+      "Bash(Select-String *)",
+      "Bash(python *)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__query-docs"
+    ]
+  }
+}
