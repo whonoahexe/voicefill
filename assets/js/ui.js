@@ -201,6 +201,25 @@ function downloadTxt(text) {
   URL.revokeObjectURL(url); // immediately revoke to prevent URL leak (T-03-04)
 }
 
+/**
+ * Build plain text from the current DOM state of the chat log.
+ * Called at copy/download time so transcription results are included.
+ * @returns {string}
+ */
+function buildPlainTextFromDom() {
+  const log = document.getElementById('chat-log');
+  if (!log) return currentPlainText || '';
+  const lines = [];
+  for (const row of log.querySelectorAll('.message-row')) {
+    const ts     = row.querySelector('.timestamp')?.textContent?.trim() || '';
+    const sender = row.querySelector('.sender')?.textContent?.trim() || ''; // includes ': '
+    const spans  = row.querySelectorAll('span');
+    const body   = spans[spans.length - 1]?.textContent?.trim() || '';
+    lines.push(ts + ' - ' + sender + body);
+  }
+  return lines.join('\n');
+}
+
 // ── Phase 2: Worker helper functions ─────────────────────────────────────────
 
 /**
@@ -586,21 +605,20 @@ async function processZipFile(file) {
 
   let result;
   try {
-    if (file.name.toLowerCase().includes('instagram')) {
-      // Instagram-named ZIP: try parseInstagram first; fall back to parseZip only
-      // if parseInstagram throws 'Unrecognized format' (wrong ZIP despite filename)
-      try {
-        result = await parseInstagram(file);
-      } catch (instagramErr) {
-        if (instagramErr.message && instagramErr.message.startsWith('Unrecognized format')) {
-          result = await parseZip(file);
-        } else {
-          throw instagramErr; // re-throw validation errors (wrong extension, too large, etc.)
-        }
+    // Always try Instagram parser first — it detects format by ZIP contents (message_N.json
+    // or message_N.html), so it works regardless of what the ZIP is named. Falls back to
+    // WhatsApp parseZip() when the ZIP contains neither Instagram marker.
+    try {
+      result = await parseInstagram(file);
+    } catch (instagramErr) {
+      const notInstagram =
+        instagramErr.message === 'No Instagram message file found in ZIP' ||
+        instagramErr.message.startsWith('Unrecognized format');
+      if (notInstagram) {
+        result = await parseZip(file);
+      } else {
+        throw instagramErr; // re-throw validation errors (wrong extension, too large, etc.)
       }
-    } else {
-      // Non-instagram filename: go straight to parseZip
-      result = await parseZip(file);
     }
   } catch (err) {
     console.error('[VoiceFill] processZipFile failed:', err);
@@ -820,7 +838,7 @@ export function init() {
   if (btnCopy) {
     btnCopy.addEventListener('click', (e) => {
       if (currentPlainText === null) return; // guard: no data yet
-      copyToClipboard(currentPlainText, e.currentTarget);
+      copyToClipboard(buildPlainTextFromDom(), e.currentTarget);
     });
   }
 
@@ -829,7 +847,7 @@ export function init() {
   if (btnDownload) {
     btnDownload.addEventListener('click', () => {
       if (currentPlainText === null) return; // guard: no data yet
-      downloadTxt(currentPlainText);
+      downloadTxt(buildPlainTextFromDom());
     });
   }
 }

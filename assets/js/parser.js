@@ -417,103 +417,119 @@ export async function parseInstagram(file) {
     throw new Error('Invalid or corrupt ZIP file');
   }
 
-  const messageEntries = [];       // { path, entry } objects for message_N.json files
+  const jsonEntries = [];          // { path, entry } for message_N.json files
+  const htmlEntries = [];          // { path, entry } for message_N.html files
   const audioFiles = new Map();    // basename -> ZipObject (bytes read lazily)
 
-  // Iterate all entries; collect message JSON files and .m4a audio files
+  // Iterate all entries; collect message files and audio files.
+  // Audio: .m4a (JSON export), .ogg and .mp4 (HTML export).
   zip.forEach((relativePath, entry) => {
     if (entry.dir) return;
     const basename = relativePath.split('/').pop(); // Pitfall 5: strip path prefix
 
-    // Collect Instagram voice audio files (.m4a — AAC in MPEG-4 container)
-    if (basename.endsWith('.m4a')) {
+    if (basename.endsWith('.m4a') || basename.endsWith('.ogg')) {
       audioFiles.set(basename, entry);
     }
-
-    // Collect Instagram message JSON files (message_1.json, message_2.json, etc.)
     if (/^message_\d+\.json$/.test(basename)) {
-      messageEntries.push({ path: relativePath, entry });
+      jsonEntries.push({ path: relativePath, entry });
+    }
+    if (/^message_\d+\.html$/.test(basename)) {
+      htmlEntries.push({ path: relativePath, entry });
     }
   });
 
-  // Validate that at least one message JSON file was found
-  if (messageEntries.length === 0) {
+  if (jsonEntries.length === 0 && htmlEntries.length === 0) {
     throw new Error('No Instagram message file found in ZIP');
   }
 
-  // Parse all message_N.json files and merge (handles long conversations split across files)
-  let allRawMessages = [];
+  let messages;
 
-  for (const { entry } of messageEntries) {
-    let raw;
-    try {
-      raw = JSON.parse(await entry.async('string'));
-    } catch (_e) {
-      throw new Error('Unrecognized format -- not an Instagram message export');
+  if (jsonEntries.length > 0) {
+    // ── JSON format (older Instagram exports) ──────────────────────────────────
+    let allRawMessages = [];
+    for (const { entry } of jsonEntries) {
+      let raw;
+      try {
+        raw = JSON.parse(await entry.async('string'));
+      } catch (_e) {
+        throw new Error('Unrecognized format -- not an Instagram message export');
+      }
+      if (!Array.isArray(raw.participants) || !Array.isArray(raw.messages)) {
+        throw new Error('Unrecognized format -- not an Instagram message export');
+      }
+      allRawMessages = allRawMessages.concat(raw.messages);
     }
 
-    // Format validation: must have participants + messages arrays
-    if (!Array.isArray(raw.participants) || !Array.isArray(raw.messages)) {
-      throw new Error('Unrecognized format -- not an Instagram message export');
+    // Sort ascending by timestamp_ms — Instagram JSON exports newest-first (Pitfall 6 guard)
+    allRawMessages.sort((a, b) => (a.timestamp_ms || 0) - (b.timestamp_ms || 0));
+
+    messages = allRawMessages.map(msg => {
+      const sender    = fixInstagramEncoding(msg.sender_name || '');
+      const content   = fixInstagramEncoding(msg.content || '');
+      const timestamp = new Date(msg.timestamp_ms || 0).toLocaleString();
+
+      if (!isVoiceMessage(msg)) {
+        return { type: 'text', timestamp, sender, content };
+      }
+
+      const basename = getInstagramAudioBasename(msg);
+      if (basename && audioFiles.has(basename)) {
+        return { type: 'voice', timestamp, sender, content: '', basename, matched: true, audioEntry: audioFiles.get(basename) };
+      }
+      if (basename) {
+        return { type: 'voice', timestamp, sender, content: '', basename, matched: false, annotation: '[Audio file missing]' };
+      }
+      // voice_media CDN URL — expired (T-03-08: never fetched or rendered as HTML)
+      return { type: 'voice', timestamp, sender, content: '', matched: false, annotation: '[Instagram voice: media expired — download the export again]' };
+    });
+  } else {
+    // ── HTML format (newer Instagram exports) ─────────────────────────────────
+    // Uses DOMParser (available in Electron/Chromium renderer).
+    let rawHtmlMessages = [];
+    for (const { entry } of htmlEntries) {
+      const html = await entry.async('string');
+      const doc  = new DOMParser().parseFromString(html, 'text/html');
+
+      for (const block of doc.querySelectorAll('div._a6-g')) {
+        const sender      = fixInstagramEncoding(block.querySelector('h2._a6-h')?.textContent?.trim() || '');
+        const timestampStr = block.querySelector('div._a6-o')?.textContent?.trim() || '';
+        const timestamp_ms = new Date(timestampStr).getTime() || 0;
+        const audioEl     = block.querySelector('audio[src]');
+
+        if (audioEl) {
+          const src      = audioEl.getAttribute('src') || '';
+          const basename = src.split('/').pop();
+          rawHtmlMessages.push({ _t: 'audio', sender, timestamp_ms, timestampStr, basename });
+        } else {
+          // Text content sits in the second non-empty child of the inner wrapper div
+          const contentEl = block.querySelector('div._a6-p > div');
+          let text = '';
+          if (contentEl) {
+            for (const child of contentEl.children) {
+              const t = child.textContent?.trim();
+              if (t) { text = t; break; }
+            }
+          }
+          rawHtmlMessages.push({ _t: 'text', sender, timestamp_ms, timestampStr, content: fixInstagramEncoding(text) });
+        }
+      }
     }
 
-    allRawMessages = allRawMessages.concat(raw.messages);
+    // Sort ascending — HTML exports are newest-first
+    rawHtmlMessages.sort((a, b) => a.timestamp_ms - b.timestamp_ms);
+
+    messages = rawHtmlMessages.map(m => {
+      const timestamp = m.timestampStr || new Date(m.timestamp_ms).toLocaleString();
+      if (m._t === 'text') {
+        return { type: 'text', timestamp, sender: m.sender, content: m.content };
+      }
+      // Audio message
+      if (m.basename && audioFiles.has(m.basename)) {
+        return { type: 'voice', timestamp, sender: m.sender, content: '', basename: m.basename, matched: true, audioEntry: audioFiles.get(m.basename) };
+      }
+      return { type: 'voice', timestamp, sender: m.sender, content: '', basename: m.basename || '', matched: false, annotation: '[Audio file missing]' };
+    });
   }
-
-  // Sort ascending by timestamp_ms — Instagram exports newest-first (Pitfall 6 guard)
-  allRawMessages.sort((a, b) => (a.timestamp_ms || 0) - (b.timestamp_ms || 0));
-
-  // Map each Instagram message object to the shared MessageObject shape
-  const messages = allRawMessages.map(msg => {
-    const sender    = fixInstagramEncoding(msg.sender_name || '');
-    const content   = fixInstagramEncoding(msg.content || '');
-    const timestamp = new Date(msg.timestamp_ms || 0).toLocaleString();
-
-    if (!isVoiceMessage(msg)) {
-      // Text message
-      return { type: 'text', timestamp, sender, content };
-    }
-
-    // Voice message — determine match status
-    const basename = getInstagramAudioBasename(msg);
-
-    if (basename && audioFiles.has(basename)) {
-      // audio_files URI matched a .m4a entry in the ZIP
-      return {
-        type: 'voice',
-        timestamp,
-        sender,
-        content: '',
-        basename,
-        matched: true,
-        audioEntry: audioFiles.get(basename),
-      };
-    }
-
-    if (basename) {
-      // audio_files present but file not found in ZIP (missing from export)
-      return {
-        type: 'voice',
-        timestamp,
-        sender,
-        content: '',
-        basename,
-        matched: false,
-        annotation: '[Audio file missing]',
-      };
-    }
-
-    // voice_media is an https:// CDN URL — media has expired (older export format)
-    // T-03-08: voice_media URL produces static annotation; URL is never fetched or rendered as HTML
-    return {
-      type: 'voice',
-      timestamp,
-      sender,
-      content: '',
-      matched: false,
-      annotation: '[Instagram voice: media expired — download the export again]',
-    };
-  });
 
   // Compute stats
   const voiceTotal   = messages.filter(m => m.type === 'voice').length;
